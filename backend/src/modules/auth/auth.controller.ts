@@ -1,0 +1,63 @@
+import { Body, Controller, Post } from '@nestjs/common';
+import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RateLimit } from '../../common/security/rate-limit.decorator';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { RegisterDto } from './dto/register.dto';
+import { SendMobileOtpDto } from './dto/send-mobile-otp.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { VerifyMobileOtpDto } from './dto/verify-mobile-otp.dto';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private authService: AuthService) {}
+
+  @Public()
+  @RateLimit(5, 60_000)
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
+  }
+
+  @Public()
+  @RateLimit(10, 60_000)
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @Public()
+  @RateLimit(20, 60_000)
+  @Post('refresh')
+  refresh(@Body() dto: RefreshDto) {
+    return this.authService.refresh(dto);
+  }
+
+  @Public()
+  @RateLimit(10, 60_000)
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Public()
+  @RateLimit(5, 60_000)
+  @Post('mobile/send-otp')
+  sendMobileOtp(@Body() dto: SendMobileOtpDto) {
+    return this.authService.sendMobileOtp(dto.mobile);
+  }
+
+  @Public()
+  @RateLimit(10, 60_000)
+  @Post('mobile/verify-otp')
+  verifyMobileOtp(@Body() dto: VerifyMobileOtpDto) {
+    return this.authService.verifyMobileOtp(dto.mobile, dto.code);
+  }
+
+  @Post('logout')
+  logout(@CurrentUser() user: { userId: string }, @Body() dto: RefreshDto) {
+    return this.authService.logout(user.userId, dto.refreshToken);
+  }
+}
