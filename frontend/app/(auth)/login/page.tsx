@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { login } from '@/lib/api/auth';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { login, loginTwoFa } from '@/lib/api/auth';
+import Icon from '@/components/ui/Icon';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -15,9 +16,17 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-export default function LoginPage() {
+const inputClass =
+  'w-full rounded-xl border border-gray-200 py-3 pl-10 pr-3 text-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-amber-500/20';
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justVerified = searchParams.get('verified') === '1';
   const [error, setError] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [twoFa, setTwoFa] = useState<{ email: string; password: string; rememberMe: boolean } | null>(null);
+  const [code, setCode] = useState('');
 
   const {
     register,
@@ -25,89 +34,206 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  function finish(res: { role: string; accessToken?: string; refreshToken?: string }) {
+    // Store tokens — swap for a proper session/cookie strategy in production
+    localStorage.setItem('accessToken', res.accessToken!);
+    localStorage.setItem('refreshToken', res.refreshToken!);
+    // Straight to the right dashboard for the role
+    router.push(
+      res.role === 'ADMIN'
+        ? '/admin'
+        : res.role === 'LAWYER'
+          ? '/dashboard/lawyer'
+          : '/dashboard/client',
+    );
+  }
+
   async function onSubmit(data: FormValues) {
     setError('');
     try {
-      const tokens = await login(data.email, data.password, data.rememberMe ?? false);
-      // Store tokens — swap for a proper session/cookie strategy in production
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
-      router.push('/');
+      const res = await login(data.email, data.password, data.rememberMe ?? false);
+      if (res.twoFaRequired) {
+        // Admin 2FA — a code was emailed; ask for it before issuing the session.
+        setTwoFa({ email: data.email, password: data.password, rememberMe: data.rememberMe ?? false });
+        return;
+      }
+      finish(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Log in to LawMitran</h1>
-        <p className="mt-1 text-sm text-zinc-500">Enter your credentials to continue.</p>
-      </div>
+  async function onVerifyTwoFa() {
+    if (!twoFa) return;
+    setError('');
+    try {
+      const res = await loginTwoFa(twoFa.email, twoFa.password, code.trim(), twoFa.rememberMe);
+      finish(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Verification failed');
+    }
+  }
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
-            Email address
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            {...register('email')}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            placeholder="you@example.com"
-          />
-          {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+  if (twoFa) {
+    return (
+      <div className="text-center">
+        <div aria-hidden="true" className="hero-gradient mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-2xl text-gold">
+          <Icon name="shield-halved" />
         </div>
+        <h1 className="text-2xl font-extrabold text-navy">Admin verification</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          We emailed a 6-digit code to <b className="text-slate-700">{twoFa.email}</b>.
+          Until SMTP is configured, it also appears in the backend console.
+        </p>
+        {error && (
+          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        )}
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={(e) => { if (e.key === 'Enter') void onVerifyTwoFa(); }}
+          inputMode="numeric"
+          maxLength={6}
+          aria-label="6-digit admin login code"
+          placeholder="••••••"
+          className="mt-6 w-40 rounded-xl border border-gray-200 py-3 text-center text-2xl font-bold tracking-[0.4em] text-navy focus:border-gold focus:outline-none"
+        />
+        <button
+          onClick={() => void onVerifyTwoFa()}
+          disabled={code.length !== 6}
+          className="mt-4 block w-full rounded-xl bg-navy py-3.5 font-bold text-white shadow-md hover:bg-slate-800 disabled:opacity-60"
+        >
+          Verify &amp; sign in
+        </button>
+        <button onClick={() => { setTwoFa(null); setCode(''); setError(''); }} className="mt-4 text-xs font-semibold text-slate-400 hover:text-navy">
+          Back to sign in
+        </button>
+      </div>
+    );
+  }
 
+  return (
+    <div>
+      <h1 className="text-2xl font-extrabold text-navy">Sign in</h1>
+      <p className="mb-8 mt-1 text-sm text-slate-500">Enter your details to access your account.</p>
+
+      {justVerified && (
+        <p role="status" className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <Icon name="circle-check" aria-hidden="true" className="mr-1" />
+          Mobile verified — your account is ready. Sign in to continue.
+        </p>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
-              Password
-            </label>
-            <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
-              Forgot password?
-            </Link>
+          <label htmlFor="email" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Email or Mobile
+          </label>
+          <div className="relative">
+            <Icon name="user" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              {...register('email')}
+              className={inputClass}
+            />
           </div>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            {...register('password')}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-          {errors.password && (
-            <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+          {errors.email && (
+            <p id="email-error" role="alert" className="mt-1 text-xs text-red-600">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
-        <label className="flex items-center gap-2 cursor-pointer">
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wide text-slate-500">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-gold hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Icon name="lock" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              {...register('password')}
+              className={`${inputClass} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <Icon name={showPw ? 'eye-slash' : 'eye'} className="text-sm" />
+            </button>
+          </div>
+          {errors.password && (
+            <p id="password-error" role="alert" className="mt-1 text-xs text-red-600">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        <label className="flex select-none items-center gap-2 text-sm text-slate-600">
           <input
             type="checkbox"
             {...register('rememberMe')}
-            className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-gray-300 text-gold focus:ring-gold"
           />
-          <span className="text-sm text-zinc-600">Remember me for 30 days</span>
+          Remember me
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </p>
+        )}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          className="w-full rounded-xl bg-navy py-3.5 font-bold text-white shadow-md transition-colors hover:bg-slate-800 disabled:opacity-60"
         >
-          {isSubmitting ? 'Logging in…' : 'Log in'}
+          {isSubmitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
-      <p className="text-center text-sm text-zinc-500">
-        Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-blue-600 hover:underline">
-          Sign up
+      <p className="mt-8 text-center text-sm text-slate-500">
+        New to LawMitran?{' '}
+        <Link href="/signup" className="font-bold text-gold hover:underline">
+          Create an account
         </Link>
       </p>
+      <div className="mt-6 border-t border-gray-100 pt-5 text-center">
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-navy"
+        >
+          <Icon name="shield-halved" /> Admin portal
+        </Link>
+        <p className="mt-1 text-[11px] text-slate-300">Staff only · role-gated (ADMIN)</p>
+      </div>
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+

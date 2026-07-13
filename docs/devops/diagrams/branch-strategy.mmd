@@ -1,0 +1,20 @@
+%% LawMitran — Branch Strategy (GitFlow Lite)
+gitGraph
+    commit id: "init"
+    branch develop
+    checkout develop
+    commit id: "dev-base"
+    branch feature/login
+    commit id: "login-1"
+    commit id: "login-2"
+    checkout develop
+    merge feature/login
+    branch feature/payment
+    commit id: "pay-1"
+    checkout develop
+    merge feature/payment
+    branch qa
+    checkout qa
+    commit id: "qa-verify"
+    checkout main
+    merge qa tag: "v1.0.0"

@@ -7,7 +7,7 @@ LawMitran is a legal marketplace for India: lawyer discovery, lead generation, a
 This is an npm workspace with two packages:
 
 - `backend` — NestJS + Prisma + PostgreSQL API. Implemented.
-- `frontend` — Next.js (App Router). Not scaffolded yet.
+- `frontend` — Next.js 16 (App Router). Implemented — see [docs/26-frontend-implementation.md](./docs/26-frontend-implementation.md).
 
 ## Stack
 
@@ -85,6 +85,20 @@ docker compose up -d
 ## Environment variables
 
 See `.env.example` for the full list (database, Redis, S3/MinIO, JWT secrets, rate limiting, reCAPTCHA, Razorpay, frontend API base URL).
+
+## Documentation
+
+Key references for the repo:
+
+- [ROADMAP.md](./ROADMAP.md) — where the project is headed (phases).
+- [STATUS.md](./STATUS.md) — what's implemented today (snapshot).
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, workflow, and code conventions.
+- [docs/architecture-diagrams.md](./docs/architecture-diagrams.md) — system, module, lead-flow, auth, data-model, and deployment diagrams.
+- [docs/screenshots.md](./docs/screenshots.md) — UI reference / screenshot gallery.
+- [docs/26-frontend-implementation.md](./docs/26-frontend-implementation.md) — the Next.js app (routes, API layer, auth model).
+- [CLAUDE.md](./CLAUDE.md) — architecture notes (auth guards, Prisma domain model, storage conventions) for AI coding assistants.
+
+The full design-doc set lives in [`docs/`](./docs/).
 
 ## More details
 

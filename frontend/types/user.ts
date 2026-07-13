@@ -5,11 +5,14 @@ export interface Me {
   id: string;
   email: string;
   mobile: string;
+  fullName: string | null;
   role: Role;
+  adminRole?: 'SUPER' | 'OPS' | 'FINANCE' | null;
   avatarUrl: string | null;
   status: UserStatus;
   emailVerified: boolean;
   mobileVerified: boolean;
+  marketingOptIn: boolean;
   createdAt: string;
 }
 

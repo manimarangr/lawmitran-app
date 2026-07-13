@@ -15,4 +15,12 @@ export class SetPlanPriceDto {
   @IsInt()
   @Min(0)
   monthlyLeadCap?: number | null;
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'Max active service areas for this plan; omit/null for unlimited (docs/28)',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxServiceAreas?: number | null;
 }

@@ -5,6 +5,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { NotifyModule } from './common/notify/notify.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { AuditModule } from './common/audit/audit.module';
+import { AdminScopeGuard } from './common/guards/admin-scope.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { RateLimitGuard } from './common/security/rate-limit.guard';
@@ -18,12 +22,17 @@ import { LeadsModule } from './modules/leads/leads.module';
 import { AiIntakeModule } from './modules/ai-intake/ai-intake.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { SeoModule } from './modules/seo/seo.module';
+import { PropertyModule } from './modules/property/property.module';
+import { ContactModule } from './modules/contact/contact.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    NotifyModule,
+    SettingsModule,
+    AuditModule,
     AuthModule,
     UsersModule,
     LawyersModule,
@@ -34,6 +43,8 @@ import { SeoModule } from './modules/seo/seo.module';
     AiIntakeModule,
     RatingsModule,
     SeoModule,
+    ContactModule,
+    PropertyModule,
   ],
   controllers: [AppController],
   providers: [
@@ -41,6 +52,7 @@ import { SeoModule } from './modules/seo/seo.module';
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: AdminScopeGuard },
   ],
 })
 export class AppModule {}

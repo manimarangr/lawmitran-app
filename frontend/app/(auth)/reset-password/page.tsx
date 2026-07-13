@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { resetPassword } from '@/lib/api/auth';
+import Icon from '@/components/ui/Icon';
 
 const schema = z
   .object({
@@ -19,12 +20,16 @@ const schema = z
   });
 type FormValues = z.infer<typeof schema>;
 
+const inputClass =
+  'w-full rounded-xl border border-gray-200 py-3 pl-10 pr-10 text-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-amber-500/20';
+
 function ResetPasswordForm() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get('token') ?? '';
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  const [showPw, setShowPw] = useState(false);
 
   const {
     register,
@@ -34,10 +39,16 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="text-center space-y-4">
-        <h1 className="text-2xl font-semibold text-zinc-900">Invalid link</h1>
-        <p className="text-sm text-zinc-500">This password reset link is missing or malformed.</p>
-        <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+      <div className="space-y-4 text-center">
+        <div
+          aria-hidden="true"
+          className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-2xl text-rose-500"
+        >
+          <Icon name="triangle-exclamation" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-navy">Invalid link</h1>
+        <p className="text-sm text-slate-500">This password reset link is missing or malformed.</p>
+        <Link href="/forgot-password" className="text-sm font-bold text-gold hover:underline">
           Request a new link
         </Link>
       </div>
@@ -46,12 +57,17 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div className="text-center space-y-4">
-        <div className="text-4xl">✅</div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Password updated</h1>
-        <p className="text-sm text-zinc-500">Your password has been changed. You can now log in.</p>
-        <Link href="/login" className="text-sm text-blue-600 hover:underline">
-          Go to login
+      <div className="space-y-4 text-center">
+        <div
+          aria-hidden="true"
+          className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-2xl text-green-500"
+        >
+          <Icon name="circle-check" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-navy">Password updated</h1>
+        <p className="text-sm text-slate-500">Your password has been changed. You can now sign in.</p>
+        <Link href="/login" className="text-sm font-bold text-gold hover:underline">
+          Go to sign in
         </Link>
       </div>
     );
@@ -74,47 +90,69 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Set new password</h1>
-        <p className="mt-1 text-sm text-zinc-500">Choose a strong password for your account.</p>
-      </div>
+    <div>
+      <h1 className="text-2xl font-extrabold text-navy">Set new password</h1>
+      <p className="mb-8 mt-1 text-sm text-slate-500">Choose a strong password for your account.</p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
+          <label htmlFor="password" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
             New password
           </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            {...register('password')}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <Icon name="lock" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              {...register('password')}
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <Icon name={showPw ? 'eye-slash' : 'eye'} className="text-sm" />
+            </button>
+          </div>
           {errors.password && (
-            <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+            <p id="password-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.password.message}
+            </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="confirm" className="block text-sm font-medium text-zinc-700 mb-1">
+          <label htmlFor="confirm" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
             Confirm password
           </label>
-          <input
-            id="confirm"
-            type="password"
-            autoComplete="new-password"
-            {...register('confirm')}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <Icon name="lock" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="confirm"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              placeholder="Repeat your new password"
+              aria-invalid={!!errors.confirm}
+              aria-describedby={errors.confirm ? 'confirm-error' : undefined}
+              {...register('confirm')}
+              className={inputClass}
+            />
+          </div>
           {errors.confirm && (
-            <p className="mt-1 text-xs text-red-600">{errors.confirm.message}</p>
+            <p id="confirm-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.confirm.message}
+            </p>
           )}
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}{' '}
             {error.includes('expired') && (
               <Link href="/forgot-password" className="font-medium underline">
@@ -127,7 +165,7 @@ function ResetPasswordForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          className="w-full rounded-xl bg-navy py-3.5 font-bold text-white shadow-md transition-colors hover:bg-slate-800 disabled:opacity-60"
         >
           {isSubmitting ? 'Updating…' : 'Update password'}
         </button>
@@ -138,7 +176,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="text-center text-sm text-zinc-400">Loading…</div>}>
+    <Suspense fallback={<div className="text-center text-sm text-slate-400">Loading…</div>}>
       <ResetPasswordForm />
     </Suspense>
   );

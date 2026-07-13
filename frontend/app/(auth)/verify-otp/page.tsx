@@ -4,12 +4,12 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { sendMobileOtp, verifyMobileOtp } from '@/lib/api/auth';
+import Icon from '@/components/ui/Icon';
 
 function VerifyOtpInner() {
   const router = useRouter();
   const params = useSearchParams();
   const mobile = params.get('mobile') ?? '';
-  const role = params.get('role') ?? 'CLIENT';
 
   const [digits, setDigits] = useState<string[]>(Array(6).fill(''));
   const [error, setError] = useState('');
@@ -43,8 +43,8 @@ function VerifyOtpInner() {
     setBusy(true);
     try {
       await verifyMobileOtp(mobile, code);
-      // Mobile verified. There's no session yet (OTP doesn't issue tokens), so sign in next.
-      router.push(`/login?verified=1&role=${role}`);
+      // Verified — sessions are only issued via /login, so sign in next.
+      router.push('/login?verified=1');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {
@@ -65,17 +65,32 @@ function VerifyOtpInner() {
   return (
     <div className="space-y-6 text-center">
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Verify your mobile</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Enter the 6-digit code we sent on WhatsApp (or SMS) to{' '}
-          <span className="font-semibold text-zinc-700">+91 {mobile}</span>.{' '}
-          <Link href="/signup" className="font-semibold text-[#C9A24B]">Change</Link>
+        <div
+          aria-hidden="true"
+          className="hero-gradient mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-2xl text-gold"
+        >
+          <Icon name="mobile-screen-button" />
+        </div>
+        <h1 className="text-2xl font-extrabold text-navy">Verify your mobile</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Enter the 6-digit code we sent on{' '}
+          <span className="font-semibold text-green-600">
+            <Icon name="whatsapp" aria-hidden="true" /> WhatsApp
+          </span>{' '}
+          (or SMS) to <span className="font-semibold text-slate-700">+91 {mobile}</span>.{' '}
+          <Link href="/signup" className="font-semibold text-gold hover:underline">
+            Change
+          </Link>
         </p>
       </div>
 
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
+      {error && (
+        <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
 
-      <div className="flex justify-center gap-2">
+      <div className="flex justify-center gap-2" role="group" aria-label="One-time code">
         {digits.map((d, i) => (
           <input
             key={i}
@@ -87,21 +102,35 @@ function VerifyOtpInner() {
             }}
             inputMode="numeric"
             maxLength={1}
-            className="h-[52px] w-11 rounded-xl border border-zinc-300 py-3 text-center text-xl font-bold text-zinc-900 focus:border-[#C9A24B] focus:outline-none"
+            aria-label={`Digit ${i + 1}`}
+            className="h-[52px] w-11 rounded-xl border border-gray-200 bg-white py-3 text-center text-xl font-bold text-navy focus:border-gold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
           />
         ))}
       </div>
 
-      <button onClick={onVerify} disabled={busy} className="w-full rounded-lg bg-[#0B192C] py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+      <button
+        onClick={onVerify}
+        disabled={busy}
+        className="w-full rounded-xl bg-navy py-3.5 font-bold text-white shadow-md transition-colors hover:bg-slate-800 disabled:opacity-60"
+      >
         {busy ? 'Verifying…' : 'Verify & continue'}
       </button>
 
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-slate-400" aria-live="polite">
         {cooldown > 0 ? (
-          <>Didn&apos;t get it? Resend in <span className="font-semibold text-zinc-600">{cooldown}s</span></>
+          <>
+            Didn&apos;t get it? Resend in{' '}
+            <span className="font-semibold text-slate-600">{cooldown}s</span>
+          </>
         ) : (
-          <button onClick={onResend} className="font-semibold text-[#C9A24B] hover:underline">Resend code</button>
+          <button onClick={onResend} className="font-bold text-gold hover:underline">
+            Resend code
+          </button>
         )}
+      </p>
+      <p className="text-[11px] text-slate-400">
+        <Icon name="shield-halved" aria-hidden="true" className="mr-1 text-gold" />
+        Verifying your mobile keeps the platform spam-free and your account secure.
       </p>
     </div>
   );

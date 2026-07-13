@@ -150,3 +150,77 @@ Pricing on `templates/:id` includes base price plus whether stamping is required
 
 ---
 **Related:** [04-database-design.md](./04-database-design.md) · [10-admin-module.md](./10-admin-module.md) · [13-subscription-module.md](./13-subscription-module.md)
+
+
+---
+
+## Phase 1 — SHIPPED (guided form → preview → pay → download)
+
+**Catalog:** templates carry `slug` (SEO URLs), lifecycle `DRAFT → PUBLISHED → ARCHIVED`,
+`version` (content edits to a published template auto-bump), `language`. Only PUBLISHED
+templates are public. Migration `doc_marketplace_p1`.
+
+**Rendering:** mustache-lite `{{fieldName}}` engine server-side (HTML-escaped, blanks → ruled
+lines). Free preview is **truncated** (~700 chars) + frontend watermark — the full text never
+leaves the server unpaid. On payment the rendered text is **frozen** into
+`CustomerDocument.contentHtml`, so later template edits never change a purchased document.
+
+**Buyer flow:** `/legal-documents` (Start buttons live) → `/legal-documents/[slug]`
+(Product JSON-LD, stamp-paper banner) → schema-driven form → preview → Razorpay checkout
+(`POST /documents/checkout` → `verify-payment`; dev placeholder orders auto-verify) →
+client dashboard **My Documents** (list + print view with stamp guidance + disclaimer).
+Buyer answers ride the existing DPDP export/erase.
+
+**Admin:** `/admin/documents` (OPS scope) — Templates (create draft, publish/archive, sales
+counts), Categories CRUD, Orders (paginated). Editor at `/admin/documents/[id]`: details,
+**form builder** (add/reorder/remove fields, click-to-insert `{{placeholders}}`), body editor,
+sample preview. Publishes/price changes are audit-logged; every sale fires a
+`DOCUMENT_PURCHASED` admin notification.
+
+**Phase 2 (open):** server-side PDF (Puppeteer), Hindi templates, state stamp-duty tables,
+courier delivery (schema fields exist), GST invoices for document sales, bundle offers,
+lawyer-review upsell (creates a Lead). AI intake pre-fill: **shipped**.
+
+---
+
+## Phase 2 — LegalDesk flow analysis (July 2026)
+
+Reviewed LegalDesk.com's live generation flow (rental agreement + name-change affidavit).
+Their flow: SEO landing per document (long-form content, price upfront, validity infographic) →
+**state selection** → tabbed form grouped by party (Agreement/Landlord/Tenant/Property/Rent/Terms) →
+**live preview filling in as you type** → auto-saved drafts with a restore banner → pay →
+download **or printed stamp paper home-delivered**.
+
+Where we already win: AI prefill from the homepage intake conversation, and a real verified-lawyer
+marketplace behind "need customization" (theirs is a contact form).
+
+### P0 — SHIPPED (July 2026)
+
+- **Live preview** (`DocumentWizard.tsx`): the watermarked preview re-renders ~800 ms after each
+  keystroke (debounced, sequence-guarded; failures keep the last good preview). Blank fields render
+  as ruled lines server-side, so the document takes shape from the first character. The manual
+  "Free preview" button is gone.
+- **Draft autosave + restore**: answers autosave to `localStorage` (`lm-doc-draft-<templateId>`,
+  600 ms debounce). On return, saved answers restore with a banner + "Start fresh instead".
+  Restore runs before AI prefill, and prefill only fills empty fields — saved answers always win.
+- **Sectioned steps + toggle chips**: `TemplateField.section` (optional) groups fields into wizard
+  steps with a numbered step nav, Back / **Save & Next** (per-step validation), pay button on the
+  final step. Select fields with ≤ 4 options render as toggle chips (LegalDesk-style) instead of
+  dropdowns. Templates without sections keep the single-form behavior — fully backward compatible.
+  Admin form builder gained a "Section" input per field.
+
+### P1 — next
+
+1. **State selection per document** — stamp duty + clauses vary by state; capture state, vary
+   template clauses, show correct duty guidance.
+2. **"Make it valid" guidance** per template (admin-editable): print on stamp paper of ₹X → attest
+   before two witnesses → register at sub-registrar where applicable. Shown post-purchase and on the
+   landing page.
+3. **Richer SEO landing per template** — long-form "What is / How to / FAQ" content + FAQ JSON-LD on
+   `/legal-documents/[slug]` (their traffic engine).
+
+### P2 — deliberately deferred
+
+Stamp-paper printing + courier delivery and e-stamping tie-ups (SHCIL etc.), upload-your-own-document
+stamping, phone-support line. Real differentiators but operations-heavy; our lawyer-routing wedge
+comes first.

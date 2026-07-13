@@ -20,6 +20,20 @@ export function revealContact(id: string) {
 }
 
 // ---- Client ----
+export interface CreateLeadInput {
+  lawyerId: string;
+  practiceArea?: string;
+  description: string;
+}
+
+/** Submit a requirement to a lawyer — the core marketplace action. */
+export function createLead(input: CreateLeadInput) {
+  return authFetch<Lead>('/leads', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function fetchMyLeads() {
   return authFetch<Lead[]>('/leads/me');
 }

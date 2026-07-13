@@ -127,5 +127,30 @@ hardening is a follow-up). Full detail: [26-frontend-implementation.md](./26-fro
 > **Migration:** run `npx prisma migrate dev` + `npx prisma generate`, then `npm run prisma:seed` from
 > `backend/`.
 
+## 11. AI intake funnel — decisions (July 2026 cycle)
+
+- **Deterministic-first, LLM as enhancement.** Keyword KB (18 topics) + clarify trees route most
+  questions free; the LLM only classifies/interviews/synthesizes, JSON-validated with whitelists.
+  Every AI path degrades silently to the KB — the product never depends on the provider being up. → [12](./12-ai-module.md)
+- **Quota circuit breaker, never retry a 429.** Daily-quota 429 pauses all LLM calls 30 min (60 s for
+  per-minute spikes); one retry only for transient 503s. ≤ 1 LLM call per summary — triage's
+  `topicKey` is passed to `/ai-intake/ask` so it never re-classifies. → [12](./12-ai-module.md)
+- **Anonymous tiering: 3 free summaries/day per IP**, then sign-up gate; signed-in unlimited.
+  In-memory counter (Redis before multi-instance deploys). → [12](./12-ai-module.md)
+- **Generic QA for unmatched questions.** Guard-railed general-information answer (India-only, no
+  advice/predictions, ends at a verified lawyer) replaces the fixed fallback text when AI is available. → [12](./12-ai-module.md)
+- **Non-legal input: no keyword blacklist.** The interviewer declares `not-legal` (context-aware);
+  a deterministic escape chip covers AI-down. Blacklists were rejected — food/travel words appear in
+  real consumer cases ("Swiggy didn't refund my order"). Logged for homepage-copy tuning. → [12](./12-ai-module.md)
+- **Practice-area values are canonical seeded names everywhere.** Lawyer search filters by exact
+  (case-insensitive) equality, so intake links carry "Property Law", never "Property"
+  (`PRACTICE_CANONICAL` backend + `normalizePracticeArea` frontend); `/lawyers` hero + sidebar sync
+  from URL params. → [12](./12-ai-module.md), [15](./15-search-and-matching.md)
+- **City intelligence:** city mentioned in the question text (seeded-city lookup) or detected via
+  geolocation is saved and pre-fills lawyer search. → [15](./15-search-and-matching.md)
+- **KB gaps become keyword rules.** Admin intake insights (30-day topics + unmatched list) drive KB
+  growth — airline/e-commerce keywords and the 6 new topics (tax, traffic, IP, medical negligence,
+  passport, business) came from this loop. → [12](./12-ai-module.md)
+
 ---
 **Related:** [02](./02-business-rules.md) · [08](./08-lawyer-module.md) · [13](./13-subscription-module.md) · [14](./14-lead-management.md) · [15](./15-search-and-matching.md) · [16](./16-security.md) · [20](./20-winback-expired-contact.md) · [21](./21-improvement-backlog.md)

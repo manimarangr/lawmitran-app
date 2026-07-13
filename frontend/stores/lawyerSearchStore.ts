@@ -8,6 +8,8 @@ interface LawyerSearchState {
   pendingBounds: MapBounds | null; // bounds after pan, before "search this area" click
   selectedLawyerId: string | null;
   hoveredLawyerId: string | null;
+  /** Lawyer the client is submitting a requirement to (opens the lead modal). */
+  leadLawyerId: string | null;
 
   setFilters: (filters: SearchFilters) => void;
   setPage: (page: number) => void;
@@ -15,6 +17,7 @@ interface LawyerSearchState {
   confirmBounds: () => void; // commit pendingBounds → mapBounds
   setSelectedLawyerId: (id: string | null) => void;
   setHoveredLawyerId: (id: string | null) => void;
+  setLeadLawyerId: (id: string | null) => void;
   resetFilters: () => void;
 }
 
@@ -25,6 +28,7 @@ export const useLawyerSearchStore = create<LawyerSearchState>((set) => ({
   pendingBounds: null,
   selectedLawyerId: null,
   hoveredLawyerId: null,
+  leadLawyerId: null,
 
   setFilters: (filters) => set({ filters, page: 1 }),
   setPage: (page) => set({ page }),
@@ -33,5 +37,6 @@ export const useLawyerSearchStore = create<LawyerSearchState>((set) => ({
     set((s) => ({ mapBounds: s.pendingBounds, pendingBounds: null, page: 1 })),
   setSelectedLawyerId: (id) => set({ selectedLawyerId: id }),
   setHoveredLawyerId: (id) => set({ hoveredLawyerId: id }),
+  setLeadLawyerId: (id) => set({ leadLawyerId: id }),
   resetFilters: () => set({ filters: {}, page: 1, mapBounds: null, pendingBounds: null }),
 }));

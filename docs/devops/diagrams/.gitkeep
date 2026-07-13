@@ -1,0 +1,11 @@
+# Diagrams
+
+Place architecture and network diagrams here (PNG/SVG exports, or `.drawio` / `.mmd` sources).
+
+Suggested set:
+- `system-architecture.png` — component and request-flow diagram (see 01-system-architecture.md)
+- `network-topology.png` — VPC/subnet/security-group view (see 02-aws-infrastructure.md)
+- `ci-cd-pipeline.png` — branch → build → deploy flow (see 08-github-actions.md)
+- `branch-strategy.png` — Git flow (see 09-branch-strategy.md)
+
+ASCII versions of each are embedded inline in the corresponding docs; export polished versions here when ready.

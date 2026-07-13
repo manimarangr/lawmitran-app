@@ -2,14 +2,19 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   LeadStatus,
   SubscriptionStatus,
   VerificationStatus,
 } from '@prisma/client';
+import { classifyQuestion } from '../ai-intake/guidance-topics';
 import { MailService } from '../../common/mail/mail.service';
+import { NotifyService } from '../../common/notify/notify.service';
+import { SettingsService } from '../settings/settings.service';
 import { WhatsappService } from '../../common/whatsapp/whatsapp.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
@@ -23,11 +28,54 @@ const STATUS_ORDER: LeadStatus[] = [
 
 @Injectable()
 export class LeadsService {
+  private readonly logger = new Logger(LeadsService.name);
+
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
     private whatsapp: WhatsappService,
+    private notify: NotifyService,
+    private settings: SettingsService,
   ) {}
+
+  /** Lead SLA sweep: nudge lawyers sitting on NEW leads, digest to admins (docs/10). */
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async leadSlaSweep() {
+    const hours = await this.settings.getNumber('LEAD_SLA_HOURS', 48);
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const stale = await this.prisma.lead.findMany({
+      where: { status: LeadStatus.NEW, createdAt: { lt: cutoff }, slaNudgedAt: null },
+      include: {
+        lawyer: {
+          select: { userId: true, fullName: true, user: { select: { email: true } } },
+        },
+      },
+      take: 200,
+    });
+    if (stale.length === 0) return;
+
+    for (const lead of stale) {
+      try {
+        await this.mail.sendLeadSlaNudge(lead.lawyer.user.email, lead.practiceArea, hours);
+        await this.notify.notifyUser(lead.lawyer.userId, 'LEAD_SLA', {
+          title: 'A client is waiting to hear from you',
+          body: `Your ${lead.practiceArea} lead has been waiting over ${hours} hours — contact the client soon or they may look elsewhere.`,
+        });
+        await this.prisma.lead.update({
+          where: { id: lead.id },
+          data: { slaNudgedAt: new Date() },
+        });
+      } catch (err) {
+        this.logger.warn(`lead SLA nudge failed for ${lead.id}: ${(err as Error).message}`);
+      }
+    }
+    await this.notify.notifyAdmins('LEAD_SLA_DIGEST', {
+      title: `${stale.length} lead(s) uncontacted past the ${hours}h SLA`,
+      body: 'The lawyers have been nudged automatically (in-app + email).',
+      link: '/admin',
+    });
+    this.logger.log(`Lead SLA sweep: nudged ${stale.length} lawyer(s)`);
+  }
 
   async create(clientId: string, dto: CreateLeadDto) {
     const lawyer = await this.prisma.lawyer.findUnique({
@@ -57,22 +105,28 @@ export class LeadsService {
       }
     }
 
+    // Auto-categorize when the client didn't pick an area (docs/12 case categorization).
+    let practiceArea = dto.practiceArea?.trim();
+    if (!practiceArea) {
+      const { topic, matched } = classifyQuestion(dto.description);
+      practiceArea = matched && topic.practiceMatch
+        ? topic.practiceMatch.charAt(0).toUpperCase() + topic.practiceMatch.slice(1)
+        : 'General';
+    }
+
     const lead = await this.prisma.lead.create({
       data: {
         clientId,
         lawyerId: lawyer.id,
-        practiceArea: dto.practiceArea,
+        practiceArea,
         description: dto.description,
       },
     });
 
-    await this.mail.sendNewLeadNotification(
-      lawyer.user.email,
-      dto.practiceArea,
-    );
+    await this.mail.sendNewLeadNotification(lawyer.user.email, practiceArea);
     await this.whatsapp.sendMessage(
       lawyer.user.mobile,
-      `New ${dto.practiceArea} lead on LawMitran. Open your dashboard to respond.`,
+      `New ${practiceArea} lead on LawMitran. Open your dashboard to respond.`,
     );
 
     return lead;
@@ -82,6 +136,7 @@ export class LeadsService {
     return this.prisma.lead.findMany({
       where: { clientId },
       orderBy: { createdAt: 'desc' },
+      include: { rating: { select: { id: true, score: true } } },
     });
   }
 
@@ -203,9 +258,10 @@ export class LeadsService {
       data: {
         actorId: userId,
         action: 'LEAD_CONTACT_REVEALED',
-        entity: 'Lead',
+        entityType: 'Lead',
         entityId: leadId,
-        metaJson: { lawyerId: lawyer.id, clientId: lead.clientId },
+        summary: 'Lawyer revealed the client contact for a lead',
+        newValue: { lawyerId: lawyer.id, clientId: lead.clientId },
       },
     });
 

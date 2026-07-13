@@ -114,13 +114,54 @@ model LandingContent {
   membership ([23](./23-client-membership.md)).
 - **FAQ per practice area** (reusable) + local specifics per city.
 
+## City & practice hub pages (implemented)
+
+The two hub levels above the city×practice money pages are live in the frontend:
+
+- **City hub** `/lawyers/:city` (e.g. `/lawyers/bengaluru`, `/lawyers/chennai`, `/lawyers/mumbai`) —
+  H1 "Lawyers in {City}", intro, **practice-area grid** linking down to `/lawyers/:city/:area`,
+  top verified lawyers in the city, and "lawyers in other cities" links. Breadcrumb JSON-LD, ISR.
+- **Practice hub** `/lawyers/practice/:area` (e.g. `/lawyers/practice/family-law`) — H1 "{Practice}
+  Lawyers in India", top lawyers for the practice nationwide, and a **city grid** linking to every
+  `/lawyers/:city/:area` page. Breadcrumb JSON-LD, ISR.
+
+**Short location URLs** (`/bangalore`, `/chennai`, `/hyderabad`, `/delhi`, …) 301-redirect to the
+canonical city hub (`/lawyers/bengaluru`, …) via `next.config.ts` `redirects()` — including alias
+names (bangalore→bengaluru, bombay→mumbai, madras→chennai, calcutta→kolkata, cochin→kochi,
+new-delhi→delhi) at every depth (`/lawyers/bangalore/family-law` → `/lawyers/bengaluru/family-law`).
+Short URLs work in marketing/ads and pass link equity while the ranking URL keeps the
+"lawyers" keyword and duplicate content is impossible.
+
+Both render from `GET /api/lawyers` server-side; the sitemap already emits these URLs
+(`GET /api/seo/sitemap` → `cities[]`, `practiceAreas[]`), so hubs + money pages + profiles form a
+fully-linked, crawlable tree: `/` → `/lawyers/:city` → `/lawyers/:city/:area` → `/lawyer/:slug`.
+
+## Static legal resource library (planned — LawRato-style)
+
+Informational pages that capture top-of-funnel search volume and funnel readers to city×practice
+pages and document templates. All static/ISR, admin- or content-team-authored (later AI-drafted +
+human-reviewed):
+
+| Resource | URL pattern | Example | Notes |
+|---|---|---|---|
+| Legal guides | `/guides/:slug` | `/guides/how-to-file-for-divorce-in-india` | `Article` JSON-LD; links to practice hub + documents |
+| Act hubs | `/acts/:act` | `/acts/bharatiya-nyaya-sanhita` | BNS, IPC, CrPC, CPC, HMA, POSH… |
+| Act sections | `/acts/:act/section-:n` | `/acts/bharatiya-nyaya-sanhita/section-351` | Plain-language explainer + "talk to a lawyer" CTA + related sections |
+| Legal FAQs | `/legal-questions/:topic` | `/legal-questions/divorce` | Reusable per-practice Q&A; `FAQPage` JSON-LD |
+| Document library | `/legal-documents/:category` | `/legal-documents/rental-agreement` | Ties into the document marketplace ([11](./11-document-marketplace.md)) |
+
+Content model: a generic `ResourcePage` table (slug, type, title, body-markdown, faqJson, relations
+to PracticeArea) + admin editor — same pattern as `LandingContent`. Every resource page ends with a
+"Find a {practice} lawyer in your city" internal-link block (the conversion path).
+
 ## Phasing
 
 1. **Phase 1:** clean slugged URLs for search/profile/city/practice + canonical + `robots.txt` + a basic
-   sitemap; SSG/ISR the public pages.
+   sitemap; SSG/ISR the public pages. ✅
 2. **Phase 2:** programmatic city×practice landing pages with editable intro/FAQ + full JSON-LD + split
-   sitemaps + Search Console.
-3. **Phase 3:** guides/blog content engine + i18n (`hreflang`).
+   sitemaps + Search Console. ✅ (city + practice hubs and city×practice pages live)
+3. **Phase 3:** static legal resource library (guides, act/section explainers, FAQ topics) per the table
+   above + i18n (`hreflang`).
 
 ---
 **Related:** [03-system-architecture.md](./03-system-architecture.md) · [15-search-and-matching.md](./15-search-and-matching.md) · [04-database-design.md](./04-database-design.md) · [21-improvement-backlog.md](./21-improvement-backlog.md) · [23-client-membership.md](./23-client-membership.md)

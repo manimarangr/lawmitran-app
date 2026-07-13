@@ -4,12 +4,21 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { securityHeaders } from './common/security/security-headers.middleware';
 import { sanitizeRequestBody } from './common/security/sanitize.middleware';
+import { requestContext } from './common/audit/request-context';
+import type { Request, Response, NextFunction } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(securityHeaders);
   app.use(sanitizeRequestBody);
+  // Per-request context for the audit trail (ip/user-agent; actor added by JwtStrategy).
+  app.use((req: Request, _res: Response, next: NextFunction) =>
+    requestContext.run(
+      { ip: req.ip, userAgent: req.headers['user-agent'] },
+      next,
+    ),
+  );
 
   app.setGlobalPrefix('api');
   app.enableCors({

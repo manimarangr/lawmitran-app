@@ -7,6 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// RBAC-lite: sub-role for ADMIN users. SUPER can do everything;
+// OPS = verification/users/moderation; FINANCE = plans/offers/transactions.
+enum AdminRole {
+  SUPER
+  OPS
+  FINANCE
+}
+
 enum Role {
   CLIENT
   LAWYER
@@ -41,6 +49,33 @@ enum PaymentStatus {
   FAILED
 }
 
+enum OfferDiscountType {
+  PERCENT
+  FLAT
+}
+
+enum ContactCategory {
+  PAYMENT_ISSUE
+  ID_CARD_UPLOAD_ISSUE
+  ACCOUNT_ISSUE
+  SUBSCRIPTION_ISSUE
+  LEAD_ISSUE
+  VERIFICATION_ISSUE
+  TECHNICAL_ISSUE
+  OTHER
+}
+
+enum ContactQueryStatus {
+  OPEN
+  RESOLVED
+}
+
+enum AwardType {
+  CLIENTS_CHOICE
+  TOP_RESPONDER
+  RISING_STAR
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -72,9 +107,18 @@ model User {
   email        String   @unique
   mobile       String   @unique
   passwordHash String
+  fullName     String? // display name from signup (lawyers also keep Lawyer.fullName as per Bar Council)
   role         Role     @default(CLIENT)
+  adminRole          AdminRole? // only meaningful when role = ADMIN
+  adminOtpHash       String? // 2FA login code (sha256), short-lived
+  adminOtpExpiresAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Consent trail (DPDP): captured at signup, withdrawable via settings/account deletion.
+  termsAcceptedAt DateTime? // Terms of Use & Privacy Policy
+  consentAt       DateTime? // personal-data processing (identity verification + lawyer matching)
+  marketingOptIn  Boolean   @default(false) // optional updates/offers via email/SMS/WhatsApp
 
   emailVerified              Boolean   @default(false)
   emailVerificationToken     String?   @unique
@@ -100,6 +144,8 @@ model User {
   lawyer          Lawyer?
   leads           Lead[]             @relation("ClientLeads")
   refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]     @relation("AuditActor")
+  propertyCases   PropertyCase[]
   ratings         Rating[]
   documents       CustomerDocument[]
   bookmarks       Bookmark[]
@@ -190,11 +236,14 @@ model Lawyer {
   subscriptions Subscription[]
   leads         Lead[]               @relation("LawyerLeads")
   ratings       Rating[]
+  awards        LawyerAward[]
   payments      Payment[]
   practiceAreas LawyerPracticeArea[]
   languages     LawyerLanguage[]
   courts        LawyerCourt[]
   bookmarkedBy  Bookmark[]
+  offices       LawyerOffice[]
+  serviceAreas  LawyerServiceArea[]
 
   @@index([cityId, verificationStatus])
 }
@@ -226,10 +275,11 @@ model Subscription {
 }
 
 model SubscriptionPlanPrice {
-  planName       String   @id
-  amount         Decimal  @db.Decimal(10, 2)
-  monthlyLeadCap Int? // max new leads a lawyer on this plan receives per month; null = unlimited
-  updatedAt      DateTime @updatedAt
+  planName        String   @id
+  amount          Decimal  @db.Decimal(10, 2)
+  monthlyLeadCap  Int? // max new leads a lawyer on this plan receives per month; null = unlimited
+  maxServiceAreas Int? // max active service areas (docs/28); null = unlimited
+  updatedAt       DateTime @updatedAt
 }
 
 // Duration-based pricing: one row per (plan, duration). Lets a lawyer buy a plan
@@ -247,17 +297,44 @@ model SubscriptionPlanTier {
   @@index([planName, active])
 }
 
+// Seasonal / promotional offers (e.g. Diwali, Pongal, Republic Day) configured by admin.
+// Auto-applied at checkout: best active offer matching the (plan, duration) wins.
+// planName null = all plans; durationDays null = all durations.
+model Offer {
+  id            String            @id @default(uuid())
+  name          String // e.g. "Diwali Offer"
+  description   String?
+  discountType  OfferDiscountType @default(PERCENT)
+  discountValue Decimal           @db.Decimal(10, 2) // percent (0-100) or flat ₹ off
+  planName      String? // BASIC | PREMIUM | null = all
+  durationDays  Int? // 30/90/... | null = all
+  startsAt      DateTime
+  endsAt        DateTime
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  payments Payment[]
+
+  @@index([active, startsAt, endsAt])
+}
+
 model Payment {
   id                String        @id @default(uuid())
   lawyerId          String
   lawyer            Lawyer        @relation(fields: [lawyerId], references: [id])
   planName          String
-  amount            Decimal       @db.Decimal(10, 2)
+  amount            Decimal       @db.Decimal(10, 2) // final charged amount (after any offer)
+  listAmount        Decimal?      @db.Decimal(10, 2) // tier price before discount
+  offerId           String?
+  offer             Offer?        @relation(fields: [offerId], references: [id])
+  offerName         String? // snapshot of the offer name at purchase time
   durationDays      Int
   provider          String        @default("razorpay")
   providerOrderId   String        @unique
   providerPaymentId String?
   status            PaymentStatus @default(CREATED)
+  invoiceNo         String?       @unique // GST invoice number, assigned on first download
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -276,6 +353,7 @@ model Lead {
   createdAt    DateTime      @default(now())
 
   clientConfirmedAt DateTime? // client confirmed the lawyer actually made contact
+  slaNudgedAt       DateTime? // lead-SLA reminder sent (once per lead)
   closedReason      String? // e.g. WITHDRAWN, HIRED, DECLINED, EXPIRED
 
   rating  Rating?
@@ -295,6 +373,40 @@ model LeadHistory {
   createdAt  DateTime    @default(now())
 
   @@index([leadId])
+}
+
+// "Contact us" submissions — triaged by admins under Client Queries.
+model ContactQuery {
+  id        String             @id @default(uuid())
+  name      String
+  email     String
+  mobile    String?
+  category  ContactCategory
+  subject   String?
+  message   String
+  status    ContactQueryStatus @default(OPEN)
+  adminNote String?
+  userId    String? // set when the sender was signed in
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// Criteria-based platform recognition (see docs/27-awards-and-recognition.md).
+// Computed automatically per calendar year — never self-assigned.
+model LawyerAward {
+  id           String    @id @default(uuid())
+  lawyerId     String
+  lawyer       Lawyer    @relation(fields: [lawyerId], references: [id])
+  type         AwardType
+  year         Int
+  title        String // display name, e.g. "Client's Choice"
+  criteriaJson Json? // snapshot of the numbers that earned it
+  createdAt    DateTime  @default(now())
+
+  @@unique([lawyerId, type, year])
+  @@index([lawyerId])
 }
 
 model Rating {
@@ -333,14 +445,50 @@ model District {
 }
 
 model City {
-  id         String   @id @default(uuid())
-  districtId String
-  district   District @relation(fields: [districtId], references: [id])
-  name       String
-  lawyers    Lawyer[]
+  id           String              @id @default(uuid())
+  districtId   String
+  district     District            @relation(fields: [districtId], references: [id])
+  name         String
+  lawyers      Lawyer[]
+  offices      LawyerOffice[]
+  serviceAreas LawyerServiceArea[]
 
   @@unique([districtId, name])
   @@index([name])
+}
+
+// Physical presence: a lawyer can have several offices; exactly one is primary.
+// Map pins come from offices; Lawyer.cityId/lat/lng mirror the primary office.
+model LawyerOffice {
+  id          String  @id @default(uuid())
+  lawyerId    String
+  lawyer      Lawyer  @relation(fields: [lawyerId], references: [id])
+  label       String? // "Main office", "High Court chamber"
+  addressLine String?
+  cityId      String
+  city        City    @relation(fields: [cityId], references: [id])
+  pincode     String? // 6-digit Indian PIN
+  landmark    String?
+  latitude    Float?
+  longitude   Float?
+  isPrimary   Boolean  @default(false)
+  photoUrls   String[] @default([]) // office photos (max 3, enforced in service)
+
+  @@index([lawyerId])
+  @@index([cityId])
+}
+
+// Lead-serving territory: cities where the lawyer accepts leads.
+// Search matches ACTIVE service areas; capped per plan (see SubscriptionPlanPrice).
+model LawyerServiceArea {
+  lawyerId String
+  lawyer   Lawyer  @relation(fields: [lawyerId], references: [id])
+  cityId   String
+  city     City    @relation(fields: [cityId], references: [id])
+  active   Boolean @default(true)
+
+  @@id([lawyerId, cityId])
+  @@index([cityId, active])
 }
 
 model PracticeArea {
@@ -396,7 +544,75 @@ model LawyerCourt {
   @@index([courtId])
 }
 
+// Every homepage legal question — demand intelligence + KB gap analysis (docs/12).
+model AiIntakeLog {
+  id           String   @id @default(uuid())
+  question     String
+  topicKey     String
+  matched      Boolean
+  practiceArea String?
+  aiUsed       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([topicKey, createdAt])
+  @@index([matched, createdAt])
+}
+
+// ---------- Property Document Check (docs/29) ----------
+
+enum PropertyCaseStatus {
+  OPEN
+  ANALYZED
+  LAWYER_REVIEW
+  CLOSED
+}
+
+model PropertyCase {
+  id              String             @id @default(uuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id])
+  state           String
+  city            String
+  transactionType String // FLAT_PURCHASE | SITE_PURCHASE | RESALE_HOUSE | AGRICULTURAL_LAND | OTHER
+  status          PropertyCaseStatus @default(OPEN)
+  reportJson      Json? // deterministic checklist report (verbatim, audit-separated from lawyer advice)
+  leadId          String? // set when the client requests a lawyer opinion
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  documents       PropertyCaseDocument[]
+
+  @@index([userId, status])
+}
+
+model PropertyCaseDocument {
+  id        String       @id @default(uuid())
+  caseId    String
+  case      PropertyCase @relation(fields: [caseId], references: [id])
+  docType   String // checklist item key, e.g. saleDeed, ec, khataCertificate
+  provided  Boolean      @default(true) // ticked as "I have this" (upload optional in P0)
+  fileUrl   String?
+  createdAt DateTime     @default(now())
+
+  @@unique([caseId, docType])
+}
+
+// Seeded per state × transaction type; 'ANY' state matches everywhere. Admin CRUD in P1.
+model PropertyChecklist {
+  id              String @id @default(uuid())
+  state           String
+  transactionType String
+  items           Json // [{ key, label, why, required }]
+
+  @@unique([state, transactionType])
+}
+
 // ---------- Document marketplace ----------
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
 
 model DocumentCategory {
   id          String             @id @default(uuid())
@@ -411,12 +627,16 @@ model DocumentTemplate {
   categoryId    String
   category      DocumentCategory   @relation(fields: [categoryId], references: [id])
   title         String
+  slug          String             @unique
   keywords      String[]
   price         Decimal            @db.Decimal(10, 2)
   schemaJson    Json
   bodyTemplate  String
   requiresStamp Boolean            @default(false)
   stampBasis    String?
+  status        TemplateStatus     @default(DRAFT)
+  version       Int                @default(1)
+  language      String             @default("en")
   active        Boolean            @default(true)
   documents     CustomerDocument[]
   createdAt     DateTime           @default(now())
@@ -432,6 +652,9 @@ model CustomerDocument {
   templateId      String
   template        DocumentTemplate @relation(fields: [templateId], references: [id])
   inputJson       Json
+  contentHtml     String? // snapshot of the purchased document (frozen at payment)
+  providerOrderId String?
+  amount          Decimal?         @db.Decimal(10, 2)
   pdfUrl          String?
   status          DocumentStatus   @default(DRAFT)
   deliveryType    DeliveryType     @default(DIGITAL)
@@ -461,6 +684,35 @@ model Bookmark {
   @@index([lawyerId])
 }
 
+// Immutable trail of every admin action (docs/10 — compliance).
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String // e.g. LAWYER_APPROVED, USER_SUSPENDED, SETTINGS_UPDATED
+  entityType String?
+  entityId   String?
+  summary    String   @default("")
+  oldValue   Json?
+  newValue   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+// Admin-configurable platform settings (gateway keys, business knobs).
+// Values override env vars; empty/missing rows fall back to process.env.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Notification {
   id          String              @id @default(uuid())
   userId      String
@@ -487,15 +739,4 @@ model LandingContent {
   @@unique([citySlug, practiceSlug])
 }
 
-model AuditLog {
-  id        String   @id @default(uuid())
-  actorId   String?
-  action    String
-  entity    String
-  entityId  String
-  metaJson  Json?
-  createdAt DateTime @default(now())
 
-  @@index([entity, entityId])
-  @@index([actorId])
-}

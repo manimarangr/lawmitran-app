@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, Length } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -10,4 +10,11 @@ export class LoginDto {
   @IsOptional()
   @IsBoolean()
   rememberMe?: boolean;
+}
+
+export class LoginTwoFaDto extends LoginDto {
+  /** 6-digit code emailed to the admin */
+  @IsString()
+  @Length(6, 6)
+  code: string;
 }

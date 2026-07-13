@@ -1,5 +1,14 @@
 export type PlanName = 'BASIC' | 'PREMIUM';
 
+export interface TierOffer {
+  id: string;
+  name: string;
+  description: string | null;
+  discountType: 'PERCENT' | 'FLAT';
+  discountValue: number;
+  endsAt: string;
+}
+
 export interface PlanTier {
   id: string;
   planName: PlanName;
@@ -7,6 +16,8 @@ export interface PlanTier {
   label: string;
   amount: string; // Decimal serialized as string
   active: boolean;
+  offer: TierOffer | null;
+  offerAmount: number | null; // discounted price when an offer applies
 }
 
 export interface CheckoutOrder {

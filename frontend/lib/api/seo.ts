@@ -45,6 +45,21 @@ export async function getSitemapFeed(): Promise<SitemapFeed> {
   return res.json() as Promise<SitemapFeed>;
 }
 
+export interface PracticeAreaRef {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/** Public practice area reference list (homepage grid, hero dropdown). */
+export async function getPracticeAreas(): Promise<PracticeAreaRef[]> {
+  const res = await fetch(`${API_BASE}/lawyers/practice-areas`, {
+    next: { revalidate: 86400 },
+  });
+  if (!res.ok) throw new Error('Failed to load practice areas');
+  return res.json() as Promise<PracticeAreaRef[]>;
+}
+
 /** Server-side lawyer list for landing/city pages. */
 export async function getLawyers(
   params: Record<string, string | number>,

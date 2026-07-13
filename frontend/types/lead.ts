@@ -10,6 +10,7 @@ export interface Lead {
   createdAt: string;
   clientConfirmedAt?: string | null;
   closedReason?: string | null;
+  rating?: { id: string; score: number } | null;
 }
 
 export interface RevealedContact {

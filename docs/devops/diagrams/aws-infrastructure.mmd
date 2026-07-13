@@ -1,0 +1,38 @@
+%% LawMitran — AWS Infrastructure (initial, self-hosted on EC2)
+flowchart TB
+    internet([Internet])
+    r53["Route 53<br/>lawmitran.com zone"]
+
+    internet --> r53
+
+    subgraph vpc["VPC (ap-south-1)"]
+        subgraph sn["Public subnet"]
+            subgraph prod["EC2 — Production (dedicated)"]
+                pnginx["Nginx + TLS"]
+                pstack["Docker Compose:<br/>FE · BE · Postgres · Redis · MinIO"]
+                pnginx --> pstack
+            end
+            subgraph shared["EC2 — Dev + QA (shared)"]
+                snginx["Nginx + TLS (vhosts)"]
+                dstack["dev stack"]
+                qstack["qa stack"]
+                snginx --> dstack
+                snginx --> qstack
+            end
+        end
+        sg["Security Group<br/>80/443 public · 22 restricted"]
+    end
+
+    r53 -->|A: lawmitran.com, api.*| prod
+    r53 -->|A: dev.*, qa.*, api-dev.*, api-qa.*| shared
+
+    subgraph future["Future migration path"]
+        rds[(RDS)]
+        ec[(ElastiCache)]
+        ecs["ECS / EKS"]
+        alb["ALB"]
+        cf["CloudFront"]
+        asg["Auto Scaling"]
+    end
+
+    prod -. scale .-> future

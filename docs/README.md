@@ -48,6 +48,8 @@ This `docs/` folder is the product + engineering reference.
 | 24 | [SEO & Landing Pages](./24-seo-and-landing-pages.md) | Slugged URLs, programmatic city×practice pages, JSON-LD, sitemaps/robots, canonical/pagination, content + internal linking |
 | 25 | [Multi-Professional Expansion](./25-multi-professional-expansion.md) | Future "Find Professionals" — CA/CS/GST; generalized Professional model, per-body verification, discovery vs productized services, phasing |
 | 26 | [Frontend Implementation](./26-frontend-implementation.md) | **What's built** in the Next.js app: route map, API/auth layer, SEO routes, wired-vs-remaining, run steps |
+| 27 | [Awards & Recognition](./27-awards-and-recognition.md) | Criteria-based lawyer awards (Client's Choice, Top Responder, Rising Star): thresholds, annual computation, profile display |
+| 28 | [Locations & Service Areas](./28-locations-and-service-areas.md) | Multiple offices + plan-capped service areas; search matches service areas; backfill keeps verification & existing data untouched |
 
 ## Tech stack (target)
 

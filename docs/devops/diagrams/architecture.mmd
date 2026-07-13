@@ -1,0 +1,28 @@
+%% LawMitran — Overall System Architecture
+flowchart TB
+    user([User / Browser])
+
+    subgraph edge["Edge"]
+        nginx["Nginx Reverse Proxy<br/>TLS termination (Let's Encrypt)"]
+    end
+
+    subgraph app["Application (Docker Compose)"]
+        fe["Next.js Frontend<br/>App Router · :3000"]
+        be["NestJS Backend API<br/>/api · :3001"]
+    end
+
+    subgraph data["Stateful services (self-hosted)"]
+        pg[("PostgreSQL")]
+        redis[("Redis<br/>cache · queue · rate-limit")]
+        minio[("MinIO<br/>S3-compatible storage")]
+    end
+
+    user -->|HTTPS| nginx
+    nginx -->|lawmitran.com| fe
+    nginx -->|api.lawmitran.com| be
+    fe -->|SSR / fetch| be
+    be --> pg
+    be --> redis
+    be --> minio
+
+    minio -. future migration .-> s3[("AWS S3")]

@@ -10,21 +10,40 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export interface LoginResponse {
+  role: 'CLIENT' | 'LAWYER' | 'ADMIN';
+  accessToken?: string;
+  refreshToken?: string;
+  /** Admin 2FA: a code was emailed; call loginTwoFa next. */
+  twoFaRequired?: boolean;
+}
+
 export function login(email: string, password: string, rememberMe: boolean) {
-  return apiFetch<{ accessToken: string; refreshToken: string }>('/auth/login', {
+  return apiFetch<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password, rememberMe }),
+  });
+}
+
+export function loginTwoFa(email: string, password: string, code: string, rememberMe: boolean) {
+  return apiFetch<LoginResponse>('/auth/login/2fa', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, code, rememberMe }),
   });
 }
 
 export type Role = 'CLIENT' | 'LAWYER';
 
 export interface RegisterInput {
+  fullName: string;
   email: string;
   mobile: string;
   password: string;
   role: Role;
   captchaToken: string;
+  acceptTerms: boolean;
+  acceptProcessing: boolean;
+  marketingOptIn?: boolean;
 }
 
 /** Register — sends ONE mobile OTP (WhatsApp-first). Throws with a field-specific message on a duplicate. */

@@ -1,9 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useLawyerSearchStore } from '@/stores/lawyerSearchStore';
+import CityInput from '@/components/ui/CityInput';
+import { detectCity, saveCity } from '@/lib/geo';
+import { PRACTICE_AREAS } from '@/lib/practice-areas';
 import type { SearchFilters } from '@/types/lawyer';
 
 const schema = z.object({
@@ -18,19 +22,22 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-const PRACTICE_AREAS = [
-  'Family Law', 'Criminal Law', 'Civil Law', 'Corporate Law',
-  'Property Law', 'Labour Law', 'Tax Law', 'Intellectual Property',
-];
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Malayalam'];
 
-export function FilterSidebar() {
+export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' }) {
   const { filters, setFilters, resetFilters } = useLawyerSearchStore();
+  const [locating, setLocating] = useState(false);
 
   const { register, handleSubmit, reset } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: filters as FormValues,
   });
+
+  // Keep the form in sync when filters are seeded from URL params
+  // (e.g. the homepage hero search: /lawyers?city=Chennai&practiceArea=...).
+  useEffect(() => {
+    reset(filters as FormValues);
+  }, [filters, reset]);
 
   function onSubmit(data: FormValues) {
     const clean: SearchFilters = {};
@@ -50,11 +57,28 @@ export function FilterSidebar() {
     resetFilters();
   }
 
+  /** Browser location → nearest seeded city → applied to the search immediately. */
+  async function useMyLocation() {
+    setLocating(true);
+    const city = await detectCity();
+    setLocating(false);
+    if (city) {
+      saveCity(city);
+      setFilters({ ...filters, city });
+    }
+  }
+
   return (
-    <aside className="w-72 shrink-0 border-r border-zinc-200 bg-white overflow-y-auto">
+    <aside
+      className={
+        variant === 'card'
+          ? 'rounded-2xl border border-gray-200/60 bg-white shadow-sm lg:sticky lg:top-24'
+          : 'w-72 shrink-0 overflow-y-auto border-r border-line bg-white'
+      }
+    >
       <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900">Filters</h2>
+          <h2 className="text-sm font-semibold text-navy">Filters</h2>
           <button
             type="button"
             onClick={handleReset}
@@ -65,11 +89,19 @@ export function FilterSidebar() {
         </div>
 
         <Field label="City">
-          <input
+          <CityInput
             {...register('city')}
             placeholder="e.g. Chennai"
             className={inputCls}
           />
+          <button
+            type="button"
+            onClick={() => void useMyLocation()}
+            disabled={locating}
+            className="mt-1.5 text-xs font-semibold text-gold hover:underline disabled:opacity-60"
+          >
+            {locating ? 'Detecting your city…' : '📍 Use my location'}
+          </button>
         </Field>
 
         <Field label="Practice Area">
@@ -115,6 +147,7 @@ export function FilterSidebar() {
               type="number"
               min={0}
               placeholder="Min"
+              aria-label="Minimum experience in years"
               className={`${inputCls} w-1/2`}
             />
             <input
@@ -122,6 +155,7 @@ export function FilterSidebar() {
               type="number"
               min={0}
               placeholder="Max"
+              aria-label="Maximum experience in years"
               className={`${inputCls} w-1/2`}
             />
           </div>
@@ -137,7 +171,7 @@ export function FilterSidebar() {
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="w-full rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy-2 transition-colors"
         >
           Apply filters
         </button>
@@ -147,15 +181,15 @@ export function FilterSidebar() {
 }
 
 const inputCls =
-  'w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm outline-none focus:border-gold focus:ring-1 focus:ring-gold';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wide">
+    <label className="block space-y-1">
+      <span className="block text-xs font-bold uppercase tracking-wide text-slate-500">
         {label}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }

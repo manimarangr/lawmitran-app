@@ -4,17 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useLawyerSearchStore } from '@/stores/lawyerSearchStore';
 import type { LawyerListItem } from '@/types/lawyer';
-
-function StarRating({ avg, count }: { avg: string | null; count: number }) {
-  const val = avg ? parseFloat(avg) : 0;
-  return (
-    <span className="flex items-center gap-1 text-sm text-zinc-500">
-      <span className="text-amber-400">★</span>
-      <span className="font-medium text-zinc-700">{val > 0 ? val.toFixed(1) : '—'}</span>
-      {count > 0 && <span>({count})</span>}
-    </span>
-  );
-}
+import Icon from '@/components/ui/Icon';
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
   const initials = name
@@ -26,86 +16,114 @@ function Avatar({ name, url }: { name: string; url: string | null }) {
     return (
       <Image
         src={url}
-        alt={name}
-        width={56}
-        height={56}
-        className="h-14 w-14 rounded-full object-cover shrink-0"
+        alt=""
+        width={64}
+        height={64}
+        className="h-16 w-16 shrink-0 rounded-xl object-cover"
       />
     );
   }
   return (
-    <div className="h-14 w-14 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-semibold shrink-0">
+    <div
+      aria-hidden="true"
+      className="hero-gradient flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-xl font-extrabold text-gold"
+    >
       {initials}
     </div>
   );
 }
 
 export function LawyerCard({ lawyer }: { lawyer: LawyerListItem }) {
-  const { setHoveredLawyerId, setSelectedLawyerId } = useLawyerSearchStore();
+  const { setHoveredLawyerId, setLeadLawyerId } = useLawyerSearchStore();
   const areas = lawyer.practiceAreas.map((p) => p.practiceArea.name);
   const cityName = lawyer.city?.name;
   const stateName = lawyer.city?.district.state.name;
+  const rating = lawyer.ratingAvg ? parseFloat(lawyer.ratingAvg) : 0;
+  const verified = lawyer.verificationStatus === 'APPROVED';
 
   return (
-    <div
+    <article
       id={`lawyer-card-${lawyer.id}`}
       onMouseEnter={() => setHoveredLawyerId(lawyer.id)}
       onMouseLeave={() => setHoveredLawyerId(null)}
-      className="flex gap-4 rounded-xl border border-zinc-200 bg-white p-4 hover:shadow-md transition-shadow"
+      className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm transition-all hover:shadow-md"
     >
-      <Avatar name={lawyer.fullName} url={lawyer.profileImageUrl} />
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <Link
-              href={`/lawyers/${lawyer.id}`}
-              className="text-base font-semibold text-zinc-900 hover:text-blue-600 leading-tight"
-            >
-              {lawyer.fullName}
-            </Link>
-            {lawyer.verificationStatus === 'APPROVED' && (
-              <span className="ml-1.5 text-xs text-green-600 font-medium">✓ Verified</span>
-            )}
-          </div>
-        </div>
-
-        <StarRating avg={lawyer.ratingAvg} count={lawyer.ratingCount} />
-
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500">
-          {cityName && (
-            <span>📍 {cityName}{stateName ? `, ${stateName}` : ''}</span>
+      <div className="flex gap-4">
+        <div className="relative shrink-0">
+          <Avatar name={lawyer.fullName} url={lawyer.profileImageUrl} />
+          {verified && (
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-green-500"
+            />
           )}
-          <span>🏛 {lawyer.experienceYears} yrs exp.</span>
         </div>
 
-        {areas.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {areas.slice(0, 2).map((a) => (
-              <span
-                key={a}
-                className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
-              >
-                {a}
-              </span>
-            ))}
-            {areas.length > 2 && (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
-                +{areas.length - 2} more
-              </span>
-            )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold leading-tight text-slate-900">
+                <Link href={`/lawyer/${lawyer.slug ?? lawyer.id}`} className="hover:text-navy-2">
+                  {lawyer.fullName}
+                </Link>
+                {verified && (
+                  <span className="ml-2 rounded-full bg-green-50 px-2 py-0.5 align-middle text-[10px] font-bold text-green-600">
+                    <Icon name="circle-check" aria-hidden="true" /> Verified
+                  </span>
+                )}
+              </h3>
+              <p className="mt-1 text-xs font-medium text-slate-400">
+                {cityName && (
+                  <>
+                    <Icon name="location-dot" aria-hidden="true" className="mr-1 text-gold" />
+                    {cityName}
+                    {stateName ? `, ${stateName}` : ''} &nbsp;·&nbsp;{' '}
+                  </>
+                )}
+                <Icon name="briefcase" aria-hidden="true" className="mr-1" /> {lawyer.experienceYears} yrs
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-xs font-semibold text-amber-500">
+                <Icon name="star-fill" aria-hidden="true" /> {rating > 0 ? rating.toFixed(1) : '—'}
+              </div>
+              {lawyer.ratingCount > 0 && (
+                <div className="text-[11px] text-slate-400">{lawyer.ratingCount} reviews</div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      <div className="shrink-0 self-center">
-        <button
-          onClick={() => setSelectedLawyerId(lawyer.id)}
-          className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
-        >
-          Submit requirement
-        </button>
+          {areas.length > 0 && (
+            <div className="my-2.5 flex flex-wrap gap-2">
+              {areas.slice(0, 2).map((a) => (
+                <span key={a} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {a}
+                </span>
+              ))}
+              {areas.length > 2 && (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+                  +{areas.length - 2} more
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3">
+            <Link
+              href={`/lawyer/${lawyer.slug ?? lawyer.id}`}
+              className="rounded-xl border border-gray-200 px-3.5 py-2 text-xs font-semibold text-navy transition-colors hover:border-gold"
+            >
+              View Profile
+            </Link>
+            <button
+              onClick={() => setLeadLawyerId(lawyer.id)}
+              className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
+            >
+              <Icon name="phone-volume" aria-hidden="true" className="text-[10px]" /> Contact Lawyer
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </article>
   );
 }

@@ -11,8 +11,7 @@ import {
 import type { PlanName, PlanTier } from '@/types/subscription';
 
 const GST = 0.18;
-const DURATIONS = [30, 90, 180, 365];
-const durLabel: Record<number, string> = { 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
+const FALLBACK_LABEL: Record<number, string> = { 30: '30 days', 90: '3 months', 180: '6 months', 365: '1 year' };
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 
 // Minimal Razorpay checkout typing
@@ -48,14 +47,38 @@ export default function PlanPage() {
 
   const tiersQ = useQuery({ queryKey: ['plan-tiers'], queryFn: fetchPlanTiers });
 
-  const priceOf = useMemo(() => {
-    const map = new Map<string, number>();
-    (tiersQ.data ?? []).forEach((t: PlanTier) => map.set(`${t.planName}-${t.durationDays}`, Number(t.amount)));
-    return (plan: PlanName, d: number) => map.get(`${plan}-${d}`) ?? 0;
+  // Durations come from whatever tiers the admin has configured & activated.
+  const durations = useMemo(() => {
+    const seen = new Map<number, string>();
+    (tiersQ.data ?? []).forEach((t: PlanTier) => {
+      if (!seen.has(t.durationDays)) {
+        seen.set(t.durationDays, t.label || FALLBACK_LABEL[t.durationDays] || `${t.durationDays} days`);
+      }
+    });
+    return [...seen.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([days, label]) => ({ days, label }));
+  }, [tiersQ.data]);
+
+  const durLabel = useMemo(() => {
+    const m: Record<number, string> = {};
+    durations.forEach((d) => { m[d.days] = d.label; });
+    return m;
+  }, [durations]);
+
+  // Snap the selection to the first available duration once tiers load.
+  const activeDuration = durations.some((d) => d.days === duration)
+    ? duration
+    : (durations[0]?.days ?? duration);
+
+  const tierOf = useMemo(() => {
+    const map = new Map<string, PlanTier>();
+    (tiersQ.data ?? []).forEach((t: PlanTier) => map.set(`${t.planName}-${t.durationDays}`, t));
+    return (plan: PlanName, d: number) => map.get(`${plan}-${d}`) ?? null;
   }, [tiersQ.data]);
 
   const checkoutM = useMutation({
-    mutationFn: (plan: PlanName) => createCheckout(plan, duration),
+    mutationFn: (plan: PlanName) => createCheckout(plan, activeDuration),
     onSuccess: async (order, plan) => {
       const ok = await loadRazorpay();
       if (!ok || !window.Razorpay) {
@@ -67,7 +90,7 @@ export default function PlanPage() {
         amount: order.amount,
         currency: order.currency,
         name: 'LawMitran',
-        description: `${plan} · ${durLabel[duration]}`,
+        description: `${plan} · ${durLabel[activeDuration] ?? `${activeDuration} days`}`,
         order_id: order.razorpayOrderId,
         theme: { color: '#0B192C' },
         handler: async (resp: RzpResponse) => {
@@ -94,62 +117,81 @@ export default function PlanPage() {
   ];
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-6 text-center">
-        <h1 className="text-3xl font-extrabold text-[#0B192C]">Choose your plan</h1>
+        <h1 className="text-3xl font-extrabold text-navy">Choose your plan</h1>
         <p className="mt-2 text-sm text-slate-500">Keep receiving intent-matched client leads. Cancel anytime.</p>
       </div>
 
-      {/* duration toggle */}
-      <div className="mb-8 flex justify-center">
-        <div className="inline-flex flex-wrap gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
-          {DURATIONS.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDuration(d)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                duration === d ? 'bg-[#0B192C] text-white' : 'text-slate-500'
-              }`}
-            >
-              {durLabel[d]}
-            </button>
-          ))}
+      {/* duration toggle — one button per admin-configured tier */}
+      {durations.length > 0 && (
+        <div className="mb-8 flex justify-center">
+          <div className="inline-flex flex-wrap gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
+            {durations.map((d) => (
+              <button
+                key={d.days}
+                aria-pressed={activeDuration === d.days}
+                onClick={() => setDuration(d.days)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  activeDuration === d.days ? 'bg-navy text-white' : 'text-slate-500'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {error && <p className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-center text-sm text-rose-600">{error}</p>}
-      {tiersQ.isLoading && <p className="text-center text-sm text-slate-400">Loading plans…</p>}
+      {error && <p role="alert" className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-center text-sm text-rose-600">{error}</p>}
+      {tiersQ.isLoading && <p role="status" className="text-center text-sm text-slate-400">Loading plans…</p>}
 
       <div className="grid gap-6 md:grid-cols-2">
         {plans.map((p) => {
-          const amt = priceOf(p.name, duration);
+          const tier = tierOf(p.name, activeDuration);
+          const listAmt = tier ? Number(tier.amount) : 0;
+          const offer = tier?.offer ?? null;
+          const amt = tier?.offerAmount ?? listAmt;
           const total = amt * (1 + GST);
           return (
             <div
               key={p.name}
-              className={`flex flex-col rounded-2xl bg-white p-7 shadow-sm ${
-                p.featured ? 'border-2 border-[#C9A24B] shadow-xl' : 'border border-gray-200/60'
+              className={`relative flex flex-col rounded-2xl bg-white p-7 shadow-sm ${
+                p.featured ? 'border-2 border-gold shadow-xl' : 'border border-gray-200/60'
               }`}
             >
-              <h3 className="text-lg font-bold capitalize text-[#0B192C]">{p.name.toLowerCase()}</h3>
+              {offer && (
+                <span className="absolute -top-3 left-6 rounded-full bg-rose-600 px-3 py-1 text-[11px] font-bold text-white shadow">
+                  {offer.name} · {offer.discountType === 'PERCENT' ? `${offer.discountValue}% off` : `${inr(offer.discountValue)} off`}
+                </span>
+              )}
+              <h3 className="text-lg font-bold capitalize text-navy">{p.name.toLowerCase()}</h3>
               <p className="mt-1 text-xs text-slate-500">{p.blurb}</p>
               <div className="my-4">
-                <span className="text-4xl font-extrabold text-[#0B192C]">{inr(amt)}</span>
-                <span className="text-sm text-slate-400">/{durLabel[duration]}</span>
+                {offer && listAmt > amt && (
+                  <span className="mr-2 text-lg text-slate-400 line-through">{inr(listAmt)}</span>
+                )}
+                <span className="text-4xl font-extrabold text-navy">{inr(amt)}</span>
+                <span className="text-sm text-slate-400">/{durLabel[activeDuration] ?? `${activeDuration} days`}</span>
                 <p className="mt-1 text-xs text-slate-400">+ 18% GST = {inr(total)} total</p>
+                {offer?.endsAt && (
+                  <p className="mt-1 text-[11px] font-semibold text-rose-600">
+                    Offer ends {new Date(offer.endsAt).toLocaleDateString()}
+                  </p>
+                )}
               </div>
               <ul className="mb-6 flex-1 space-y-2.5 text-sm text-slate-600">
                 {p.feats.map((f) => (
                   <li key={f} className="flex gap-2">
-                    <span className="text-[#C9A24B]">✓</span> {f}
+                    <span className="text-gold">✓</span> {f}
                   </li>
                 ))}
               </ul>
               <button
                 onClick={() => { setError(''); checkoutM.mutate(p.name); }}
-                disabled={checkoutM.isPending || amt === 0}
+                disabled={checkoutM.isPending || !tier}
                 className={`w-full rounded-xl py-3 text-sm font-bold disabled:opacity-50 ${
-                  p.featured ? 'bg-[#C9A24B] text-[#0B192C] hover:bg-[#b58f3f]' : 'bg-[#0B192C] text-white hover:bg-slate-800'
+                  p.featured ? 'bg-gold text-navy hover:bg-[#b58f3f]' : 'bg-navy text-white hover:bg-slate-800'
                 }`}
               >
                 {checkoutM.isPending ? 'Starting…' : `Choose ${p.name.charAt(0) + p.name.slice(1).toLowerCase()}`}
@@ -162,6 +204,6 @@ export default function PlanPage() {
       <p className="mt-8 text-center text-xs text-slate-400">
         Secure payments via Razorpay. GST invoice emailed after payment. Longer terms are billed once for the full period.
       </p>
-    </main>
+    </div>
   );
 }

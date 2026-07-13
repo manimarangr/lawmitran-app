@@ -1,25 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { register as registerUser, type Role } from '@/lib/api/auth';
+import Icon from '@/components/ui/Icon';
 
 const schema = z.object({
+  fullName: z.string().min(2, 'Enter your full name'),
   email: z.string().email('Enter a valid email address'),
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile'),
   password: z.string().min(8, 'At least 8 characters'),
   terms: z.literal(true, { message: 'Please accept the Terms & Privacy Policy' }),
+  processing: z.literal(true, { message: 'Consent to data processing is required' }),
+  marketing: z.boolean().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
-export default function SignupPage() {
+const inputClass =
+  'w-full rounded-xl border border-gray-200 py-3 pl-10 pr-3 text-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-amber-500/20';
+
+function SignupForm() {
   const router = useRouter();
-  const [role, setRole] = useState<Role>('CLIENT');
+  const searchParams = useSearchParams();
+  const [role, setRole] = useState<Role>(
+    searchParams.get('role')?.toUpperCase() === 'LAWYER' ? 'LAWYER' : 'CLIENT',
+  );
   const [error, setError] = useState('');
+  const [showPw, setShowPw] = useState(false);
 
   const {
     register,
@@ -31,10 +42,14 @@ export default function SignupPage() {
     setError('');
     try {
       await registerUser({
+        fullName: data.fullName,
         email: data.email,
         mobile: data.mobile,
         password: data.password,
         role,
+        acceptTerms: true,
+        acceptProcessing: true,
+        marketingOptIn: data.marketing ?? false,
         // TODO: integrate reCAPTCHA (react-google-recaptcha) and pass the real token
         captchaToken: 'dev-token',
       });
@@ -45,79 +60,263 @@ export default function SignupPage() {
     }
   }
 
+  const roles: { value: Role; icon: string; title: string; sub: string }[] = [
+    { value: 'CLIENT', icon: 'user', title: 'I need a lawyer', sub: 'Client account' },
+    { value: 'LAWYER', icon: 'scale-balanced', title: 'I am a lawyer', sub: 'Advocate account' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Create your account</h1>
-        <p className="mt-1 text-sm text-zinc-500">Choose how you want to use LawMitran.</p>
-      </div>
+    <div>
+      <h1 className="text-2xl font-extrabold text-navy">Create your account</h1>
+      <p className="mb-6 mt-1 text-sm text-slate-500">Choose how you want to use LawMitran.</p>
 
       {/* role toggle */}
-      <div className="grid grid-cols-2 gap-3">
-        {(['CLIENT', 'LAWYER'] as Role[]).map((r) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setRole(r)}
-            className={`rounded-xl border p-3 text-left transition ${
-              role === r ? 'border-[#C9A24B] bg-amber-50' : 'border-zinc-200 hover:border-zinc-300'
-            }`}
-          >
-            <span className="block text-sm font-bold text-zinc-900">
-              {r === 'CLIENT' ? 'I need a lawyer' : 'I am a lawyer'}
-            </span>
-            <span className="block text-[11px] text-zinc-500">
-              {r === 'CLIENT' ? 'Client account' : 'Advocate account'}
-            </span>
-          </button>
-        ))}
+      <div role="radiogroup" aria-label="Account type" className="mb-6 grid grid-cols-2 gap-3">
+        {roles.map((r) => {
+          const active = role === r.value;
+          return (
+            <button
+              key={r.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setRole(r.value)}
+              className={`rounded-xl border p-3.5 text-left transition-all ${
+                active
+                  ? 'border-gold bg-amber-50/60 ring-2 ring-amber-500/20'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <span
+                className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+                  active ? 'bg-navy text-gold' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                <Icon name={r.icon} aria-hidden="true" />
+              </span>
+              <span className="block text-sm font-bold text-navy">{r.title}</span>
+              <span className="block text-[11px] text-slate-500">{r.sub}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
+      {error && (
+        <p role="alert" className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-zinc-700">Email</label>
-          <input id="email" type="email" {...register('email')} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-[#C9A24B] focus:outline-none" placeholder="you@example.com" />
-          {errors.email && <p className="mt-1 text-xs text-rose-600">{errors.email.message}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="mobile" className="mb-1 block text-sm font-medium text-zinc-700">Mobile</label>
-          <div className="flex">
-            <span className="inline-flex items-center rounded-l-lg border border-r-0 border-zinc-300 bg-zinc-50 px-3 text-sm text-zinc-500">+91</span>
-            <input id="mobile" type="tel" inputMode="numeric" maxLength={10} {...register('mobile')} className="w-full rounded-r-lg border border-zinc-300 px-3 py-2 text-sm focus:border-[#C9A24B] focus:outline-none" placeholder="98XXXXXX01" />
+          <label htmlFor="fullName" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Full name
+          </label>
+          <div className="relative">
+            <Icon name="id-card" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="fullName"
+              type="text"
+              autoComplete="name"
+              placeholder="Your full name"
+              aria-invalid={!!errors.fullName}
+              aria-describedby={errors.fullName ? 'fullName-error' : undefined}
+              {...register('fullName')}
+              className={inputClass}
+            />
           </div>
-          {errors.mobile && <p className="mt-1 text-xs text-rose-600">{errors.mobile.message}</p>}
-          <p className="mt-1 text-[11px] text-zinc-400">We&apos;ll send a one-time code on WhatsApp (or SMS) to verify your mobile.</p>
+          {errors.fullName && (
+            <p id="fullName-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.fullName.message}
+            </p>
+          )}
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-zinc-700">Password</label>
-          <input id="password" type="password" {...register('password')} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-[#C9A24B] focus:outline-none" placeholder="At least 8 characters" />
-          {errors.password && <p className="mt-1 text-xs text-rose-600">{errors.password.message}</p>}
+          <label htmlFor="email" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Email
+          </label>
+          <div className="relative">
+            <Icon name="envelope" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              {...register('email')}
+              className={inputClass}
+            />
+          </div>
+          {errors.email && (
+            <p id="email-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.email.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="mobile" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Mobile
+          </label>
+          <div className="flex">
+            <span className="inline-flex items-center rounded-l-xl border border-r-0 border-gray-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+              +91
+            </span>
+            <input
+              id="mobile"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              autoComplete="tel-national"
+              placeholder="98XXXXXX01"
+              aria-invalid={!!errors.mobile}
+              aria-describedby={errors.mobile ? 'mobile-error' : 'mobile-hint'}
+              {...register('mobile')}
+              className="w-full rounded-r-xl border border-gray-200 px-3 py-3 text-sm focus:border-gold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+            />
+          </div>
+          {errors.mobile && (
+            <p id="mobile-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.mobile.message}
+            </p>
+          )}
+          <p id="mobile-hint" className="mt-1.5 text-[11px] text-slate-400">
+            <Icon name="whatsapp" aria-hidden="true" className="mr-1 text-green-600" />
+            We&apos;ll send a one-time code on WhatsApp (or SMS) to verify your mobile.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="password" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Password
+          </label>
+          <div className="relative">
+            <Icon name="lock" aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400" />
+            <input
+              id="password"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              {...register('password')}
+              className={`${inputClass} pr-10`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <Icon name={showPw ? 'eye-slash' : 'eye'} className="text-sm" />
+            </button>
+          </div>
+          {errors.password && (
+            <p id="password-error" role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.password.message}
+            </p>
+          )}
         </div>
 
         {role === 'LAWYER' && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
-            After verifying your mobile you&apos;ll add your Bar Council details and upload your certificate for review.
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+            <Icon name="scale-balanced" aria-hidden="true" className="mr-1 text-gold" />
+            After verifying your mobile you&apos;ll add your Bar Council details and upload your
+            Bar Council ID card for review.
           </p>
         )}
 
-        <label className="flex items-start gap-2 text-xs text-zinc-600">
-          <input type="checkbox" {...register('terms')} className="mt-0.5" />
-          <span>I agree to the <Link href="/terms" className="font-semibold text-[#C9A24B]">Terms</Link> &amp; <Link href="/privacy" className="font-semibold text-[#C9A24B]">Privacy Policy</Link>.</span>
+        <label className="flex items-start gap-2 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            aria-invalid={!!errors.terms}
+            aria-describedby={errors.terms ? 'terms-error' : undefined}
+            {...register('terms')}
+            className="mt-0.5 rounded border-gray-300 text-gold focus:ring-gold"
+          />
+          <span>
+            I agree to the{' '}
+            <Link href="/terms" className="font-semibold text-gold hover:underline">
+              Terms
+            </Link>{' '}
+            &amp;{' '}
+            <Link href="/privacy" className="font-semibold text-gold hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
         </label>
-        {errors.terms && <p className="text-xs text-rose-600">{errors.terms.message}</p>}
+        {errors.terms && (
+          <p id="terms-error" role="alert" className="text-xs text-rose-600">
+            {errors.terms.message}
+          </p>
+        )}
 
-        <button type="submit" disabled={isSubmitting} className="w-full rounded-lg bg-[#0B192C] py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+        <label className="flex items-start gap-2 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            aria-invalid={!!errors.processing}
+            aria-describedby={errors.processing ? 'processing-error' : undefined}
+            {...register('processing')}
+            className="mt-0.5 rounded border-gray-300 text-gold focus:ring-gold"
+          />
+          <span>
+            I consent to LawMitran processing my personal data to verify my identity and connect me
+            with advocates, as described in the{' '}
+            <Link href="/privacy" className="font-semibold text-gold hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+        {errors.processing && (
+          <p id="processing-error" role="alert" className="text-xs text-rose-600">
+            {errors.processing.message}
+          </p>
+        )}
+
+        <label className="flex items-start gap-2 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            {...register('marketing')}
+            className="mt-0.5 rounded border-gray-300 text-gold focus:ring-gold"
+          />
+          <span>
+            Send me updates, tips, and offers by email/SMS/WhatsApp.{' '}
+            <span className="text-slate-400">(optional)</span>
+          </span>
+        </label>
+
+        <p className="text-[11px] text-slate-400">
+          <Icon name="shield-halved" aria-hidden="true" className="mr-1 text-gold" />
+          You can withdraw consent or delete your account anytime from Settings.
+        </p>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-xl bg-navy py-3.5 font-bold text-white shadow-md transition-colors hover:bg-slate-800 disabled:opacity-60"
+        >
           {isSubmitting ? 'Creating…' : 'Create account'}
         </button>
       </form>
 
-      <p className="text-center text-sm text-zinc-500">
-        Already have an account? <Link href="/login" className="font-semibold text-[#C9A24B]">Sign in</Link>
+      <p className="mt-8 text-center text-sm text-slate-500">
+        Already have an account?{' '}
+        <Link href="/login" className="font-bold text-gold hover:underline">
+          Sign in
+        </Link>
       </p>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }

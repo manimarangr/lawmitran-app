@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getLanding, getLawyers } from '@/lib/api/seo';
 import type { LawyerListItem } from '@/types/lawyer';
+import SiteFooter from '@/components/site/SiteFooter';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.lawmitran.com';
 
@@ -71,7 +72,7 @@ export default async function CityPracticeLanding({ params }: Props) {
       : null;
 
   return (
-    <main>
+    <main id="main">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
       {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
 
@@ -163,6 +164,7 @@ export default async function CityPracticeLanding({ params }: Props) {
           </div>
         </section>
       </div>
+      <SiteFooter />
     </main>
   );
 }

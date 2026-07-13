@@ -6,6 +6,15 @@ export interface LawyerCity {
   district: { name: string; state: { name: string } };
 }
 
+export type AwardType = 'CLIENTS_CHOICE' | 'TOP_RESPONDER' | 'RISING_STAR';
+
+export interface LawyerAward {
+  id: string;
+  type: AwardType;
+  year: number;
+  title: string;
+}
+
 export interface LawyerListItem {
   id: string;
   slug: string | null;
@@ -26,8 +35,25 @@ export interface LawyerListItem {
     practiceArea: { id: string; name: string; slug: string };
     proficiency: number | null;
   }[];
+  /** Present on GET /lawyers/me/profile — latest review outcome. */
+  verifications?: { status: string; comments: string | null; reviewedAt: string | null }[];
   languages: { language: { id: string; name: string; code: string } }[];
   courts: { court: { id: string; name: string; type: string } }[];
+  awards?: LawyerAward[];
+  /** Present on GET /lawyers/me/profile. */
+  barCouncilNumber?: string;
+  offices?: {
+    id: string;
+    label: string | null;
+    addressLine: string | null;
+    pincode?: string | null;
+    landmark?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    isPrimary: boolean;
+    city: { id: string; name: string };
+  }[];
+  serviceAreas?: { city: { id: string; name: string } }[];
 }
 
 export interface LawyerMarker {

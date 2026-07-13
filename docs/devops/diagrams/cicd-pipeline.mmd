@@ -1,0 +1,15 @@
+%% LawMitran — CI/CD Pipeline (GitHub Actions)
+flowchart LR
+    dev_local["Developer"] -->|push feature/*| pr{"Pull Request"}
+    pr -->|CI: lint · tsc · test| ci_ok{"CI green?"}
+    ci_ok -->|no| dev_local
+    ci_ok -->|yes, merge to develop| build_dev["Build + push image<br/>(GHCR)"]
+
+    build_dev --> deploy_dev["Deploy → Development<br/>dev.lawmitran.com (auto)"]
+    deploy_dev -->|promote: merge develop→qa| build_qa["Build + push image"]
+    build_qa --> deploy_qa["Deploy → QA<br/>qa.lawmitran.com (auto)"]
+    deploy_qa -->|promote: merge qa→main + tag| build_prod["Build + push image"]
+    build_prod --> gate{"Manual approval"}
+    gate -->|approved| deploy_prod["Deploy → Production<br/>lawmitran.com"]
+    deploy_prod --> smoke["Smoke tests + health checks"]
+    smoke -->|fail| rollback["Rollback to previous SHA"]

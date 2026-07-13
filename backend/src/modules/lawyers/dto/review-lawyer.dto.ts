@@ -2,7 +2,11 @@ import { VerificationStatus } from '@prisma/client';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class ReviewLawyerDto {
-  @IsIn([VerificationStatus.APPROVED, VerificationStatus.REJECTED])
+  @IsIn([
+    VerificationStatus.APPROVED,
+    VerificationStatus.REJECTED,
+    VerificationStatus.SUSPENDED,
+  ])
   status: VerificationStatus;
 
   @IsOptional()

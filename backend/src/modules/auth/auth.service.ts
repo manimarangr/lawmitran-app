@@ -10,9 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import { MailService } from '../../common/mail/mail.service';
 import { OtpService } from '../../common/otp/otp.service';
+import { SettingsService } from '../settings/settings.service';
+import { AuditService } from '../../common/audit/audit.service';
 import { RecaptchaService } from '../../common/recaptcha/recaptcha.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -35,6 +37,8 @@ export class AuthService {
     private recaptcha: RecaptchaService,
     private mail: MailService,
     private otp: OtpService,
+    private settings: SettingsService,
+    private audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -85,14 +89,19 @@ export class AuthService {
       emailVerificationExpiresAt.getHours() + EMAIL_VERIFICATION_TTL_HOURS,
     );
 
+    const now = new Date();
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         mobile: dto.mobile,
         passwordHash,
+        fullName: dto.fullName,
         role: dto.role,
         emailVerificationToken,
         emailVerificationExpiresAt,
+        termsAcceptedAt: now,
+        consentAt: now,
+        marketingOptIn: dto.marketingOptIn ?? false,
       },
     });
 
@@ -128,7 +137,73 @@ export class AuthService {
         'Please verify your mobile number to finish signing up',
       );
     }
-    return this.issueTokens(user.id, user.role, dto.rememberMe ?? false);
+    // Admin 2FA: email OTP challenge before issuing tokens (Settings → Security).
+    if (
+      user.role === Role.ADMIN &&
+      (await this.settings.getBool('ADMIN_2FA_ENABLED', false))
+    ) {
+      const code = String(randomInt(100000, 1000000));
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          adminOtpHash: createHash('sha256').update(code).digest('hex'),
+          adminOtpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        },
+      });
+      await this.mail.sendAdminLoginOtp(user.email, code);
+      return { twoFaRequired: true as const, role: user.role };
+    }
+
+    const tokens = await this.issueTokens(
+      user.id,
+      user.role,
+      dto.rememberMe ?? false,
+    );
+    if (user.role === Role.ADMIN) {
+      await this.audit.log('ADMIN_LOGIN', {
+        entityType: 'User',
+        entityId: user.id,
+        summary: `Admin signed in: ${user.email}`,
+      });
+    }
+    return { role: user.role, ...tokens };
+  }
+
+  /** Step 2 of admin login: verify password + emailed code, then issue tokens. */
+  async loginTwoFa(dto: {
+    email: string;
+    password: string;
+    code: string;
+    rememberMe?: boolean;
+  }) {
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (!user || user.role !== Role.ADMIN) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const matches = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!matches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const hash = createHash('sha256').update(dto.code.trim()).digest('hex');
+    if (
+      !user.adminOtpHash ||
+      !user.adminOtpExpiresAt ||
+      user.adminOtpExpiresAt < new Date() ||
+      user.adminOtpHash !== hash
+    ) {
+      throw new UnauthorizedException('Invalid or expired code');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { adminOtpHash: null, adminOtpExpiresAt: null },
+    });
+    const tokens = await this.issueTokens(user.id, user.role, dto.rememberMe ?? false);
+    await this.audit.log('ADMIN_LOGIN', {
+      entityType: 'User',
+      entityId: user.id,
+      summary: `Admin signed in (2FA): ${user.email}`,
+    });
+    return { role: user.role, ...tokens };
   }
 
   async forgotPassword(email: string) {
@@ -301,6 +376,8 @@ export class AuthService {
       },
     });
 
+    // Signup gate passed. No session is issued here — the user signs in
+    // through /login (single, auditable entry point for sessions).
     return { success: true };
   }
 

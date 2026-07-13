@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { SettingsService } from '../../modules/settings/settings.service';
 
 interface SiteVerifyResponse {
   success: boolean;
@@ -9,10 +9,15 @@ interface SiteVerifyResponse {
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name);
 
-  constructor(private config: ConfigService) {}
+  constructor(private settings: SettingsService) {}
 
   async verify(token: string | undefined): Promise<boolean> {
-    const secretKey = this.config.get<string>('RECAPTCHA_SECRET_KEY');
+    const enabled = await this.settings.getBool('RECAPTCHA_ENABLED', true);
+    if (!enabled) {
+      this.logger.log('reCAPTCHA disabled in admin settings — skipping verification');
+      return true;
+    }
+    const secretKey = await this.settings.get('RECAPTCHA_SECRET_KEY');
     if (!secretKey) {
       this.logger.warn(
         'RECAPTCHA_SECRET_KEY not configured — skipping captcha verification',
