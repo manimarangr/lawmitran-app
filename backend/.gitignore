@@ -1,5 +1,37 @@
-node_modules
-# Keep environment variables out of version control
-.env
+# ─────────────────────────────────────────────
+# LawMitran backend — NestJS + Prisma
+# ─────────────────────────────────────────────
 
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Prisma generated client (regenerated via `prisma generate`)
 /generated/prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Caches
+.eslintcache
+
+# OS / editor
+.DS_Store
+*.swp

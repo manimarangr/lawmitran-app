@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────
+# PRODUCTION override — pull prebuilt images, bind to localhost,
+# always-restart, resource limits, log rotation.
+# Host nginx terminates TLS and proxies lawmitran.com / api.lawmitran.com.
+#   IMAGE_TAG=<sha> docker compose -f infra/docker/compose.yml \
+#                  -f infra/docker/compose.prod.override.yml up -d
+# ─────────────────────────────────────────────────────────────
+name: lawmitran-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  backend:
+    restart: always
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3001:3001"
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+
+  frontend:
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
+  postgres:
+    restart: always
+    logging: *default-logging
+
+  redis:
+    restart: always
+    logging: *default-logging
+
+  minio:
+    restart: always
+    logging: *default-logging

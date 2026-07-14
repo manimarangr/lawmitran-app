@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────
+# DEVELOPMENT override — build locally, expose everything to host.
+#   docker compose -f infra/docker/compose.yml \
+#                  -f infra/docker/compose.dev.override.yml up -d --build
+# ─────────────────────────────────────────────────────────────
+name: lawmitran-dev
+
+services:
+  backend:
+    build:
+      context: ../../backend
+    image: lawmitran-backend:dev
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ../../frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001/api}
+    image: lawmitran-frontend:dev
+    ports:
+      - "3000:3000"
+
+  # Data services exposed to host for local tooling (psql, redis-cli, MinIO console)
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"

@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is git-ignored.
+
+admin_cidrs   = ["203.0.113.10/32"]     # your office / VPN IP
+key_name      = "lawmitran-prod"        # existing EC2 key pair name
+instance_type = "t3.medium"             # grow to t3.large as traffic rises
+zone_name     = "lawmitran.com"
+alert_email   = "ops@lawmitran.com"

@@ -1,0 +1,19 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Env-specific values (may contain IPs, key names)
+*.tfvars
+*.auto.tfvars
+!*.tfvars.example
+
+# CLI config / plans
+.terraformrc
+terraform.rc
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf

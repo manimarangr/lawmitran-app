@@ -1,11 +1,18 @@
 # Diagrams
 
-Place architecture and network diagrams here (PNG/SVG exports, or `.drawio` / `.mmd` sources).
+Mermaid sources for the LawMitran DevOps documentation. Render with the Mermaid CLI, a Mermaid-aware Markdown viewer, or mermaid.live.
 
-Suggested set:
-- `system-architecture.png` — component and request-flow diagram (see 01-system-architecture.md)
-- `network-topology.png` — VPC/subnet/security-group view (see 02-aws-infrastructure.md)
-- `ci-cd-pipeline.png` — branch → build → deploy flow (see 08-github-actions.md)
-- `branch-strategy.png` — Git flow (see 09-branch-strategy.md)
+| File | Diagram | Referenced in |
+|---|---|---|
+| `architecture.mmd` | Overall system architecture | 01-system-architecture.md |
+| `aws-infrastructure.mmd` | AWS infrastructure + future migration | 02-aws-infrastructure.md |
+| `cicd-pipeline.mmd` | CI/CD pipeline flow | 11-github-actions.md |
+| `branch-strategy.mmd` | GitFlow Lite branch graph | 12-branching-strategy.md |
 
-ASCII versions of each are embedded inline in the corresponding docs; export polished versions here when ready.
+Additional inline Mermaid diagrams live directly in the docs: health-check matrix (16), zero-downtime cutover (17), rollback decision flow (18), monitoring stack (19), and DR runbook (20).
+
+To export PNGs:
+
+```bash
+npx -y @mermaid-js/mermaid-cli -i architecture.mmd -o architecture.png
+```

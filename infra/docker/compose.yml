@@ -1,0 +1,86 @@
+# ─────────────────────────────────────────────────────────────
+# LawMitran — base Docker Compose stack
+# Services shared by all environments. Combine with ONE override:
+#   docker compose -f infra/docker/compose.yml -f infra/docker/compose.<env>.override.yml up -d
+#
+# Paths are relative to this file (infra/docker/), so ../../ = repo root.
+# nginx + TLS are HOST-level (see docs/devops/08-nginx.md, 09-ssl.md), not here.
+# ─────────────────────────────────────────────────────────────
+name: lawmitran
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lawmitran}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lawmitran}
+      POSTGRES_DB: ${POSTGRES_DB:-lawmitran}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lawmitran}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [lawmitran]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [lawmitran]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-lawmitran}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-lawmitran123}
+    volumes:
+      - minio-data:/data
+    # No healthcheck: the minio server image has no bundled health client.
+    # backend depends on it via `service_started`. Add one if your image
+    # ships curl/mc, e.g. curl -f http://localhost:9000/minio/health/live
+    networks: [lawmitran]
+
+  backend:
+    # Prebuilt image (pulled in qa/prod). dev override adds a local build.
+    image: ghcr.io/${GHCR_OWNER:-lawmitran}/lawmitran-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: ../../.env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [lawmitran]
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:-lawmitran}/lawmitran-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: ../../.env
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [lawmitran]
+
+volumes:
+  pgdata:
+  redis-data:
+  minio-data:
+
+networks:
+  lawmitran:
+    driver: bridge
