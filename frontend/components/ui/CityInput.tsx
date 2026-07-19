@@ -38,6 +38,9 @@ export default function CityInput(
   const wrapRef = useRef<HTMLDivElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abort = useRef<AbortController | null>(null);
+  // choose() sets the input value programmatically, which fires a synthetic
+  // input event — suppress that one so the dropdown doesn't reopen.
+  const suppressNextInput = useRef(false);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -71,6 +74,10 @@ export default function CityInput(
   }
 
   function onInput(e: React.FormEvent<HTMLInputElement>) {
+    if (suppressNextInput.current) {
+      suppressNextInput.current = false;
+      return;
+    }
     const q = e.currentTarget.value;
     if (debounce.current) clearTimeout(debounce.current);
     if (q.trim().length < 2) {
@@ -91,7 +98,11 @@ export default function CityInput(
   }
 
   function choose(city: CitySuggestion) {
+    if (debounce.current) clearTimeout(debounce.current);
+    abort.current?.abort();
+    suppressNextInput.current = true;
     if (inputRef.current) setNativeValue(inputRef.current, city.name);
+    setOptions([]);
     setOpen(false);
     setActive(-1);
   }

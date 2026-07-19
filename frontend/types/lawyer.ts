@@ -75,6 +75,8 @@ export interface LawyerMarker {
 export interface SearchFilters {
   city?: string;
   locality?: string;
+  /** '1' -> only lawyers who can receive leads (subscription active/trial). */
+  subscribed?: string;
   practiceArea?: string;
   courtId?: string;
   experienceMin?: number;

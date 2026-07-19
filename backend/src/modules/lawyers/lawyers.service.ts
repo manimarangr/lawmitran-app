@@ -5,7 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Gender, Prisma, Role, VerificationStatus } from '@prisma/client';
+import { Gender, Prisma, Role, VerificationStatus,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { paginate, resolvePagination } from '../../common/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../../common/mail/mail.service';
@@ -138,6 +140,7 @@ export class LawyersService {
     // docs/28: the profile is never geo-empty — the city must resolve.
     const city = await this.findCityByName(dto.city);
 
+    this.assertBioClean(dto.bio);
     const lawyer = await this.prisma.lawyer.create({
       data: {
         userId,
@@ -283,6 +286,7 @@ export class LawyersService {
   }
 
   async updateOwnProfile(userId: string, dto: UpdateLawyerProfileDto) {
+    this.assertBioClean(dto.bio);
     const lawyer = await this.prisma.lawyer.findUnique({ where: { userId } });
     if (!lawyer) {
       throw new NotFoundException('Lawyer profile not found');
@@ -373,7 +377,7 @@ export class LawyersService {
 
   async search(query: SearchLawyersDto) {
     const {
-      city, practiceArea, courtId, locality,
+      city, practiceArea, courtId, locality, subscribed,
       experienceMin, experienceMax,
       language, gender, ratingMin, sort,
       swLat, swLng, neLat, neLng,
@@ -385,6 +389,7 @@ export class LawyersService {
       experienceMin, experienceMax,
       language, gender, ratingMin,
       swLat, swLng, neLat, neLng,
+      subscribed: subscribed === '1' || subscribed === 'true',
     });
 
     const orderBy: Prisma.LawyerOrderByWithRelationInput =
@@ -492,6 +497,7 @@ export class LawyersService {
     swLng?: number;
     neLat?: number;
     neLng?: number;
+      subscribed?: boolean;
   }): Prisma.LawyerWhereInput {
     const {
       city, practiceArea, courtId,
@@ -502,6 +508,13 @@ export class LawyersService {
 
     return {
       verificationStatus: VerificationStatus.APPROVED,
+      ...(params.subscribed
+        ? {
+            subscriptionStatus: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+            },
+          }
+        : {}),
       ...(city
         ? {
             OR: [
@@ -857,6 +870,16 @@ export class LawyersService {
       );
     }
     return city;
+  }
+
+  // Bios are public marketing surface — links invite spam/SEO abuse and look
+  // broken on cards. Reject any URL-ish content outright.
+  private assertBioClean(bio?: string | null) {
+    if (bio && /(https?:\/\/|www\.)/i.test(bio)) {
+      throw new BadRequestException(
+        'Links are not allowed in the bio — describe your practice in plain words',
+      );
+    }
   }
 
   // Locality must belong to the office city; anything else is dropped quietly.

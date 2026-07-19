@@ -21,7 +21,7 @@ function P({ children }: { children: React.ReactNode }) {
 export default function PrivacyPage() {
   return (
     <div>
-      <div className="mx-auto max-w-3xl px-6 py-10">
+      <div className="mx-auto max-w-4xl px-6 py-10">
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-slate-400">
           <Link href="/" className="hover:text-gold">Home</Link> /{' '}
           <span className="text-slate-500">Privacy Policy</span>

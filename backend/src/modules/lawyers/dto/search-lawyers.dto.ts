@@ -27,6 +27,12 @@ export class SearchLawyersDto {
   @IsString()
   locality?: string;
 
+  // '1'/'true' -> only lawyers who can currently receive leads (subscription
+  // ACTIVE or TRIAL). Used by the homepage showcase; normal search shows all.
+  @IsOptional()
+  @IsString()
+  subscribed?: string;
+
   @IsOptional()
   @IsUUID()
   courtId?: string;

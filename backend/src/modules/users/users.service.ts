@@ -331,6 +331,7 @@ export class UsersService {
       trialsEndingSoon,
       newLeads7d,
       revenue,
+      docRevenue,
     ] = await this.prisma.$transaction([
       this.prisma.lawyer.count({
         where: {
@@ -365,6 +366,14 @@ export class UsersService {
         _sum: { amount: true },
         where: { status: PaymentStatus.PAID, createdAt: { gte: monthStart } },
       }),
+      // Document marketplace revenue: purchases that completed payment this month.
+      this.prisma.customerDocument.aggregate({
+        _sum: { amount: true },
+        where: {
+          status: { in: ['PAID', 'DELIVERED'] as never[] },
+          updatedAt: { gte: monthStart },
+        },
+      }),
     ]);
 
     return {
@@ -377,7 +386,10 @@ export class UsersService {
       activeSubscriptions,
       trialsEndingSoon,
       newLeads7d,
-      revenueThisMonth: revenue._sum.amount ?? 0,
+      revenueThisMonth:
+        Number(revenue._sum.amount ?? 0) + Number(docRevenue._sum.amount ?? 0),
+      subscriptionRevenueThisMonth: revenue._sum.amount ?? 0,
+      documentRevenueThisMonth: docRevenue._sum.amount ?? 0,
     };
   }
 

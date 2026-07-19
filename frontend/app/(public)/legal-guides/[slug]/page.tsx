@@ -117,7 +117,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
 
   return (
     <div>
-      <article className="mx-auto max-w-3xl px-6 py-10">
+      <article className="mx-auto max-w-4xl px-6 py-10">
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-slate-400">
           <Link href="/" className="hover:text-gold">Home</Link> /{' '}
           <Link href="/legal-guides" className="hover:text-gold">Legal Guides</Link> /{' '}

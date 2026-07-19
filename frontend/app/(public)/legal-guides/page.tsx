@@ -42,20 +42,20 @@ export default async function LegalGuidesPage() {
 
   return (
     <div>
-      <section className="hero-gradient">
-        <div className="mx-auto max-w-5xl px-6 py-14 text-center">
+      <section className="hero-light">
+        <div className="mx-auto max-w-6xl px-6 py-14 text-center">
           <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gold">Legal Guides</p>
-          <h1 className="text-3xl font-extrabold text-white md:text-4xl">
+          <h1 className="text-3xl font-extrabold text-navy md:text-4xl">
             Indian law, explained in simple English
           </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-200">
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-600">
             Browse by topic to understand your rights and the correct process. Every guide is written
             for non-lawyers, with steps, documents, timelines, and FAQs.
           </p>
         </div>
       </section>
 
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-navy">Browse by topic</h2>
           <Link href="/legal-guides/all" className="text-sm font-semibold text-gold hover:underline">

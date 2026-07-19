@@ -640,6 +640,7 @@ model DocumentTemplate {
   status        TemplateStatus     @default(DRAFT)
   version       Int                @default(1)
   language      String             @default("en")
+  videoUrl      String? // how-to explainer (YouTube URL preferred; VideoObject SEO)
   active        Boolean            @default(true)
   documents     CustomerDocument[]
   createdAt     DateTime           @default(now())
