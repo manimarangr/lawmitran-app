@@ -394,6 +394,19 @@ export default function AskLegalBox() {
           </button>
         </div>
 
+        {error && (
+          <>
+            <div aria-hidden="true" className="mx-1.5 mt-2 border-t border-gray-100" />
+            <p
+              role="alert"
+              className="mx-3.5 mb-1 mt-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-700"
+            >
+              <Icon name="triangle-exclamation" aria-hidden="true" className="mr-1.5" />
+              {error}
+            </p>
+          </>
+        )}
+
         {/* ===== clarifying step — inside the same card ===== */}
         {clarify && (
           <>
@@ -571,12 +584,6 @@ export default function AskLegalBox() {
             </button>
           ))}
         </div>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 rounded-xl bg-rose-500/15 px-4 py-2.5 text-center text-sm text-rose-200">
-          {error}
-        </p>
       )}
     </div>
   );

@@ -3,6 +3,8 @@ import Icon from '@/components/ui/Icon';
 import AuthShell from '@/components/auth/AuthShell';
 import SignupAside, { type SignupBenefit } from '@/components/auth/SignupAside';
 import SignupForm from '@/components/auth/SignupForm';
+import { fetchPlanTiersServer } from '@/lib/api/subscriptions';
+import type { TierOffer } from '@/types/subscription';
 
 export const metadata: Metadata = {
   title: 'Sign Up as a Lawyer | LawMitran',
@@ -39,39 +41,33 @@ const PLANS: { name: string; blurb: string; feats: string[]; featured?: boolean 
   },
 ];
 
-function LawyerIllustration() {
+function OfferBanner({ offer }: { offer: TierOffer }) {
+  const discount =
+    offer.discountType === 'PERCENT'
+      ? `${offer.discountValue}% OFF`
+      : `₹${Math.round(offer.discountValue).toLocaleString('en-IN')} OFF`;
+  const endsAt = new Date(offer.endsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
   return (
-    <svg viewBox="0 0 360 260" role="img" aria-labelledby="lawyer-illustration-title" className="h-auto w-full max-w-sm">
-      <title id="lawyer-illustration-title">Illustration of a lawyer&apos;s practice growing with verified leads</title>
-      <circle cx="180" cy="130" r="118" fill="#f5f7fb" />
-      <circle cx="180" cy="130" r="118" fill="#e7d6a8" opacity="0.25" />
-
-      {/* briefcase */}
-      <rect x="96" y="120" width="120" height="80" rx="12" fill="#0b192c" />
-      <rect x="132" y="100" width="48" height="26" rx="8" fill="none" stroke="#0b192c" strokeWidth="6" />
-      <rect x="96" y="152" width="120" height="16" fill="#1e3e62" />
-      <circle cx="156" cy="160" r="7" fill="#d4a017" />
-
-      {/* gavel */}
-      <g transform="translate(214 66) rotate(35)">
-        <rect x="0" y="0" width="46" height="16" rx="4" fill="#d4a017" />
-        <rect x="34" y="-8" width="16" height="46" rx="4" fill="#d4a017" />
-      </g>
-
-      {/* verification badge */}
-      <circle cx="260" cy="176" r="26" fill="#d4a017" />
-      <path d="m249 176 7 7 15-16" stroke="#0b192c" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* lead cards trailing in */}
-      <rect x="60" y="70" width="30" height="20" rx="4" fill="#ffffff" stroke="#e6e9f0" strokeWidth="2" />
-      <rect x="50" y="96" width="30" height="20" rx="4" fill="#ffffff" stroke="#e6e9f0" strokeWidth="2" />
-    </svg>
+    <div className="hero-gradient relative mb-5 overflow-hidden rounded-2xl px-6 py-7 text-center text-white shadow-lg">
+      <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-gold">
+        <Icon name="tags" aria-hidden="true" className="mr-1.5" />
+        Limited-time offer
+      </p>
+      <p className="mt-2 text-4xl font-extrabold tracking-tight">{discount}</p>
+      <p className="mt-1.5 text-sm font-bold text-white/90">{offer.name}</p>
+      <p className="mx-auto mt-3 max-w-xs text-xs leading-relaxed text-slate-300">
+        {offer.description ?? 'On your first subscription plan.'} Ends {endsAt} — sign up now to lock it in.
+      </p>
+    </div>
   );
 }
 
-function PlanCards() {
+function PlanCards({ offer }: { offer: TierOffer | null }) {
   return (
     <div className="mt-8">
+      {offer && <OfferBanner offer={offer} />}
+
       <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Plans built to grow with you</p>
       <div className="grid gap-4 sm:grid-cols-3">
         {PLANS.map((p) => (
@@ -108,17 +104,19 @@ function PlanCards() {
   );
 }
 
-export default function LawyerSignupPage() {
+export default async function LawyerSignupPage() {
+  const tiers = await fetchPlanTiersServer();
+  const offer = tiers.find((t) => t.offer)?.offer ?? null;
+
   return (
     <AuthShell
       aside={
         <SignupAside
           title="Grow Your Legal Practice"
           subtitle="Join India's growing legal marketplace."
-          illustration={<LawyerIllustration />}
           benefits={BENEFITS}
         >
-          <PlanCards />
+          <PlanCards offer={offer} />
         </SignupAside>
       }
     >

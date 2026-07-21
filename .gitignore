@@ -83,3 +83,5 @@ desktop.ini
 .vercel
 # Temporary UI experiments
 sample-ui/
+
+.claude

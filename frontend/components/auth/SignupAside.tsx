@@ -15,14 +15,14 @@ export default function SignupAside({
 }: {
   title: string;
   subtitle: string;
-  illustration: React.ReactNode;
+  illustration?: React.ReactNode;
   benefits: SignupBenefit[];
   /** Extra content rendered below the benefits list (e.g. lawyer plan cards). */
   children?: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="mb-6 hidden lg:block">{illustration}</div>
+      {illustration && <div className="mb-6 hidden lg:block">{illustration}</div>}
 
       <h1 className="text-[1.75rem] font-extrabold leading-tight text-navy sm:text-3xl">{title}</h1>
       <p className="mt-3 text-sm leading-relaxed text-slate-500">{subtitle}</p>

@@ -175,7 +175,7 @@ export default function SiteHeader() {
       <header className="sticky top-0 z-50 border-b border-line bg-white/90 backdrop-blur-md print:hidden">
         <Container className="flex h-[4.625rem] items-center justify-between">
           <Link href={me ? dashboardPath(me.role) : '/'} className="flex items-center" aria-label="LawMitran home">
-            <Image src="/logo.svg" alt="LawMitran" width={160} height={38} className="h-[2.375rem] w-auto" priority />
+            <Image src="/logo.svg" alt="LawMitran" width={150} height={36} className="h-[2.375rem] w-auto" priority />
           </Link>
 
           <nav aria-label="Main" className="ml-auto mr-6 hidden items-center gap-7 md:flex">
