@@ -7,12 +7,21 @@ import { z } from 'zod';
 import { useLawyerSearchStore } from '@/stores/lawyerSearchStore';
 import { detectCity, saveCity } from '@/lib/geo';
 import { fetchLocalities, type LocalityRef } from '@/lib/api/lawyers';
+import { PRACTICE_AREAS } from '@/lib/practice-areas';
+import CityInput from '@/components/ui/CityInput';
+import Icon from '@/components/ui/Icon';
 import type { SearchFilters } from '@/types/lawyer';
 
 const schema = z.object({
+  city: z.string().optional(),
+  practiceArea: z.string().optional(),
   locality: z.string().optional(),
   language: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  // '' matches the select's default "Any" option — z.enum(...).optional() only
+  // allows a listed value or undefined, so it rejected '' and silently failed
+  // the whole form (zodResolver blocks onSubmit with no visible error) unless
+  // the user explicitly picked Male/Female/Other first.
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', '']).optional(),
   ratingMin: z.string().optional(),
   experienceMin: z.string().optional(),
   experienceMax: z.string().optional(),
@@ -22,7 +31,7 @@ type FormValues = z.infer<typeof schema>;
 
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Malayalam'];
 
-export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' }) {
+export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' | 'map' }) {
   const { filters, setFilters, resetFilters } = useLawyerSearchStore();
   const [locating, setLocating] = useState(false);
 
@@ -55,11 +64,17 @@ export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' 
   }, [filters, reset]);
 
   function onSubmit(data: FormValues) {
-    // City & practice area live in the hero search card — preserve them here.
+    // List/card view: city & practice area live in the hero search card, not
+    // this sidebar — preserve them from the store. Map view has no hero card
+    // (fixed-height layout has no room for it), so it registers its own
+    // City/Practice Area fields above and those win instead.
+    const city = variant === 'map' ? (data.city || undefined) : filters.city;
+    const practiceArea = variant === 'map' ? (data.practiceArea || undefined) : filters.practiceArea;
     const clean: SearchFilters = {};
-    if (filters.city) clean.city = filters.city;
-    if (filters.practiceArea) clean.practiceArea = filters.practiceArea;
-    if (filters.city && data.locality) clean.locality = data.locality;
+    if (city) clean.city = city;
+    if (practiceArea) clean.practiceArea = practiceArea;
+    // Locality belongs to a specific city — drop it when the city changes.
+    if (city && city === filters.city && data.locality) clean.locality = data.locality;
     if (data.language) clean.language = data.language;
     if (data.gender) clean.gender = data.gender;
     if (data.ratingMin) clean.ratingMin = parseFloat(data.ratingMin);
@@ -90,7 +105,9 @@ export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' 
       className={
         variant === 'card'
           ? 'rounded-2xl border border-gray-200/60 bg-white shadow-sm lg:sticky lg:top-24'
-          : 'w-72 shrink-0 overflow-y-auto border-r border-line bg-white'
+          : variant === 'map'
+            ? 'w-full flex-shrink-0 border-b border-line bg-white'
+            : 'w-72 shrink-0 overflow-y-auto border-r border-line bg-white'
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-5">
@@ -104,6 +121,40 @@ export function FilterSidebar({ variant = 'rail' }: { variant?: 'card' | 'rail' 
             Reset all
           </button>
         </div>
+
+        {variant === 'map' && (
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="City">
+              <div className="relative">
+                <Icon
+                  name="location-dot"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-gold"
+                />
+                <CityInput
+                  {...register('city')}
+                  placeholder="e.g. Bengaluru"
+                  className={`${inputCls} pl-7`}
+                />
+              </div>
+            </Field>
+            <Field label="Practice area">
+              <div className="relative">
+                <Icon
+                  name="gavel"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"
+                />
+                <select {...register('practiceArea')} className={`${inputCls} pl-7`}>
+                  <option value="">All areas</option>
+                  {PRACTICE_AREAS.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+            </Field>
+          </div>
+        )}
 
         <button
           type="button"

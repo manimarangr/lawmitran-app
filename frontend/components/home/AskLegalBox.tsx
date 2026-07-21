@@ -394,6 +394,19 @@ export default function AskLegalBox() {
           </button>
         </div>
 
+        {error && (
+          <>
+            <div aria-hidden="true" className="mx-1.5 mt-2 border-t border-gray-100" />
+            <p
+              role="alert"
+              className="mx-3.5 mb-1 mt-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-700"
+            >
+              <Icon name="triangle-exclamation" aria-hidden="true" className="mr-1.5" />
+              {error}
+            </p>
+          </>
+        )}
+
         {/* ===== clarifying step — inside the same card ===== */}
         {clarify && (
           <>
@@ -545,7 +558,7 @@ export default function AskLegalBox() {
                 <p className="mt-3.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[0.8125rem] text-amber-800">
                   <Icon name="lock" aria-hidden="true" className="mr-1" />
                   You&apos;ve used your <b>3 free guidance summaries</b> for today —{' '}
-                  <Link href="/signup" className="font-bold underline">create a free account</Link> or{' '}
+                  <Link href="/signup/client" className="font-bold underline">create a free account</Link> or{' '}
                   <Link href="/login" className="font-bold underline">sign in</Link> for unlimited guidance.
                 </p>
               )}
@@ -571,12 +584,6 @@ export default function AskLegalBox() {
             </button>
           ))}
         </div>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 rounded-xl bg-rose-500/15 px-4 py-2.5 text-center text-sm text-rose-200">
-          {error}
-        </p>
       )}
     </div>
   );

@@ -8,13 +8,16 @@ import {
   updateLeadStatus,
 } from '@/lib/api/leads';
 import Link from 'next/link';
-import { fetchMySubscription } from '@/lib/api/subscriptions';
+import { fetchMySubscription, fetchPlanTiers } from '@/lib/api/subscriptions';
 import { getMyProfile, resubmitVerification } from '@/lib/api/lawyers';
 import { ReportModal } from '@/components/ReportModal';
 import Icon from '@/components/ui/Icon';
 import Pagination from '@/components/ui/Pagination';
 import type { Lead, LeadStatus, RevealedContact } from '@/types/lead';
 import { createDiaryCaseFromLead } from '@/lib/api/diary';
+import Container from '@/components/ui/Container';
+
+const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 
 const badge: Record<LeadStatus, string> = {
   NEW: 'bg-blue-50 text-blue-600',
@@ -42,6 +45,8 @@ export default function LawyerDashboardPage() {
   const hasProfile = !!profileQ.data;
   const leadsQ = useQuery({ queryKey: ['lawyer-leads'], queryFn: fetchLawyerLeads, enabled: hasProfile });
   const subQ = useQuery({ queryKey: ['my-subscription'], queryFn: fetchMySubscription, enabled: hasProfile });
+  const tiersQ = useQuery({ queryKey: ['plan-tiers'], queryFn: fetchPlanTiers, enabled: hasProfile });
+  const activeOffer = tiersQ.data?.find((t) => t.offer)?.offer ?? null;
 
   const revealM = useMutation({
     mutationFn: (id: string) => revealContact(id),
@@ -106,7 +111,7 @@ export default function LawyerDashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <Container className="py-8">
       {/* header */}
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
@@ -160,13 +165,28 @@ export default function LawyerDashboardPage() {
         <div className="hero-gradient mb-6 rounded-2xl p-6 text-white">
           <div className="items-center justify-between gap-6 md:flex">
             <div className="flex-1">
-              <h2 className="text-xl font-bold">
-                {verifPending ? 'Subscribe now — get priority review' : 'Subscribe to unlock client contacts'}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold">
+                  {verifPending ? 'Subscribe now — get priority review' : 'Subscribe to unlock client contacts'}
+                </h2>
+                {activeOffer && (
+                  <span className="rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-bold text-navy">
+                    <Icon name="tags" aria-hidden="true" className="mr-1" />
+                    {activeOffer.name} ·{' '}
+                    {activeOffer.discountType === 'PERCENT' ? `${activeOffer.discountValue}% off` : `${inr(activeOffer.discountValue)} off`}
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm text-slate-300">
                 {verifPending
                   ? 'Subscribed lawyers are verified first and go live within hours. You start receiving leads the moment you are approved.'
                   : 'Your plan is inactive, so client contact details are locked. Pick a plan to start reaching clients.'}
+                {activeOffer && (
+                  <>
+                    {' '}
+                    <b>{activeOffer.name}</b> ends {new Date(activeOffer.endsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — lock in your plan before it&apos;s gone.
+                  </>
+                )}
               </p>
               <ul className="mt-4 grid gap-x-6 gap-y-2 text-sm text-slate-200 sm:grid-cols-2">
                 <li className="flex gap-2"><Icon name="unlock" aria-hidden="true" className="mt-1 text-gold" /> See client contact details &amp; reach out directly</li>
@@ -182,6 +202,34 @@ export default function LawyerDashboardPage() {
               View plans
             </Link>
           </div>
+        </div>
+      )}
+
+      {/* offer banner — already-subscribed lawyers (unsubscribed ones see the offer folded into the upsell block above) */}
+      {canReveal && activeOffer && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold/30 bg-gradient-to-r from-amber-50 to-white p-5">
+          <div className="flex items-start gap-3">
+            <span aria-hidden="true" className="hero-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gold">
+              <Icon name="tags" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-navy">
+                {activeOffer.name} —{' '}
+                {activeOffer.discountType === 'PERCENT' ? `${activeOffer.discountValue}% off` : `${inr(activeOffer.discountValue)} off`}
+                {' '}subscription plans
+              </p>
+              <p className="text-xs text-slate-500">
+                {activeOffer.description ?? 'Limited-time discount on subscription plans.'} Ends{' '}
+                {new Date(activeOffer.endsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/plan"
+            className="shrink-0 rounded-xl bg-gold px-4 py-2 text-xs font-bold text-navy hover:bg-[#b58f3f]"
+          >
+            View plans →
+          </Link>
         </div>
       )}
 
@@ -378,7 +426,7 @@ export default function LawyerDashboardPage() {
       </div>
 
       {reportLead && <ReportModal leadId={reportLead} who="client" onClose={() => setReportLead(null)} />}
-    </div>
+    </Container>
   );
 }
 

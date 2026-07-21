@@ -1,4 +1,5 @@
 import { authFetch } from './client';
+import { API_BASE } from './base';
 import type { MySubscription } from '@/types/lead';
 import type {
   CheckoutOrder,
@@ -14,6 +15,25 @@ export function fetchMySubscription() {
 /** Public — active duration tiers for the pricing page. */
 export function fetchPlanTiers() {
   return authFetch<PlanTier[]>('/subscriptions/plans/tiers');
+}
+
+/**
+ * Server Component–safe variant of fetchPlanTiers — authFetch touches
+ * localStorage/window, which don't exist during SSR. Same public endpoint,
+ * plain fetch, and fails soft (empty array) so callers just fall back to
+ * their default copy instead of breaking the page render.
+ */
+export async function fetchPlanTiersServer(): Promise<PlanTier[]> {
+  try {
+    const res = await fetch(`${API_BASE}/subscriptions/plans/tiers`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as PlanTier[];
+  } catch {
+    return [];
+  }
 }
 
 /** Create a Razorpay order for a plan + duration. */
